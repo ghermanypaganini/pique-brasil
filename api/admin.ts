@@ -1,5 +1,5 @@
-import { getKv, json, preflight, unavailable } from './_lib/http';
-import { removeMember } from './_lib/ranking';
+import { getKv, json, preflight, unavailable } from './_lib/http.js';
+import { removeMember } from './_lib/ranking.js';
 
 // Moderação. Exige o cabeçalho X-Admin-Key igual à variável de ambiente ADMIN_KEY.
 //   GET    /api/admin?sponsor=padaria-do-ze     -> impressões e cliques do patrocinador

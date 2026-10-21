@@ -1,5 +1,5 @@
-import { getKv, json, preflight, unavailable } from './_lib/http';
-import { getLeaderboard, type Board } from './_lib/ranking';
+import { getKv, json, preflight, unavailable } from './_lib/http.js';
+import { getLeaderboard, type Board } from './_lib/ranking.js';
 
 const BOARDS: Board[] = ['week', 'all', 'lule', 'bolsonero'];
 

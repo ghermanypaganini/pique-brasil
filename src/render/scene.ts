@@ -127,6 +127,7 @@ export class SceneRenderer {
     this.obstacles.clear();
     this.pickups.clear();
     this.scenery.reset();
+    this.speedLines.reset(game.player.z);
     this.cucaT = -1;
   }
 
@@ -385,14 +386,17 @@ export class SceneRenderer {
 
   private renderCamera(game: Game, dt: number, settings: RenderSettings, running: boolean): void {
     const p = game.player;
-    const speedT = Math.max(0, (game.speed - BALANCE.speed.base) / (BALANCE.speed.max - BALANCE.speed.base));
-    const targetFov = 64 + Math.min(1, speedT) * 14 + (p.boost > 0 ? 6 : 0) + (p.powers.immunity > 0 ? 8 : 0);
+    // Progresso na curva de velocidade (0 na largada, 1 no máximo). Maleta e Imunidade entram
+    // só pelos extras abaixo, para não serem contadas duas vezes.
+    const speedT = (game.baseSpeed - BALANCE.speed.base) / (BALANCE.speed.max - BALANCE.speed.base);
+    const targetFov = 64 + speedT * 14 + (p.boost > 0 ? 6 : 0) + (p.powers.immunity > 0 ? 8 : 0);
     // Linhas de velocidade (desligadas com "reduzir tremor", que é a opção de menos movimento).
-    const lines = running && !settings.reduceShake ? Math.min(1, speedT * 1.3 + (p.boost > 0 || p.powers.immunity > 0 ? 0.4 : 0)) : 0;
+    const extra = p.powers.immunity > 0 ? 0.4 : p.boost > 0 ? 0.25 : 0;
+    const lines = running && !settings.reduceShake ? Math.min(1, speedT * 1.1 + extra) * p.speedMul : 0;
     this.speedLines.update(p.z, lines);
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 4);
     this.camera.updateProjectionMatrix();
-    const target = this.camTarget.set(p.x * 0.7, 3.6 + p.y * 0.7, p.z - 6.0 - Math.min(1, speedT) * 1.2);
+    const target = this.camTarget.set(p.x * 0.7, 3.6 + p.y * 0.7, p.z - 6.0 - speedT * 1.2);
     this.camPos.lerp(target, Math.min(1, dt * 8));
     this.camPos.z = target.z; // nunca atrasa no eixo da corrida
     this.camera.position.copy(this.camPos);

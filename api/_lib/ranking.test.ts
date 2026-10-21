@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { memoryKv } from './kv';
-import { getLeaderboard, readToken, startToken, submitScore, weekId } from './ranking';
+import { memoryKv } from './kv.js';
+import { getLeaderboard, readToken, startToken, submitScore, weekId } from './ranking.js';
 
 const SECRET = 'segredo-de-teste';
 const T0 = Date.UTC(2026, 9, 21, 15, 0, 0); // quarta, 21/10/2026, 12:00 em Brasília

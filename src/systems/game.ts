@@ -125,12 +125,16 @@ export class Game {
     return Math.floor(this.distance) + this.collected;
   }
 
-  get speed(): number {
+  /** Velocidade da curva de dificuldade, sem tropeços, maleta ou power-ups. */
+  get baseSpeed(): number {
     const V = BALANCE.speed;
-    const base = V.base + (V.max - V.base) * (1 - Math.exp(-this.player.z / V.rampMeters));
+    return V.base + (V.max - V.base) * (1 - Math.exp(-this.player.z / V.rampMeters));
+  }
+
+  get speed(): number {
     const boost = this.player.boost > 0 ? 1 + BALANCE.speed.caseBoost : 1;
     const immunity = this.player.powers.immunity > 0 ? PW.immunity.speedMul : 1;
-    return base * this.player.speedMul * boost * immunity;
+    return this.baseSpeed * this.player.speedMul * boost * immunity;
   }
 
   get playerHeight(): number {

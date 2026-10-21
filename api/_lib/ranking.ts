@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { checkName, cleanName, memberOf, parseMember, type NameProblem } from '../../src/shared/names';
-import type { Kv } from './kv';
+import { BALANCE } from '../../src/data/balance.js';
+import { checkName, cleanName, memberOf, parseMember, type NameProblem } from '../../src/shared/names.js';
+import type { Kv } from './kv.js';
 
 // Regras do ranking (PRD 6.12). Sem login, a proteção é "boa o bastante", não perfeita.
 
@@ -10,7 +11,10 @@ export const CHARACTERS: Character[] = ['lule', 'bolsonero'];
 
 const TOKEN_MAX_AGE_MS = 3 * 60 * 60 * 1000; // partida mais longa aceita: 3 h
 const MIN_RUN_MS = 3000;
-const MAX_METERS_PER_SEC = 45; // velocidade máxima do jogo com Imunidade + maleta, com folga
+// Velocidade máxima possível no jogo (curva no máximo + maleta + Imunidade), calculada do próprio
+// balanceamento para não ficar desatualizada; com 10% de folga.
+const MAX_METERS_PER_SEC =
+  BALANCE.speed.max * (1 + BALANCE.speed.caseBoost) * BALANCE.powerups.immunity.speedMul * 1.1;
 const MAX_COINS_PER_METER = 3; // dinheiro coletável por metro, com folga
 const RATE_LIMIT_PER_HOUR = 30;
 const WEEK_TTL = 60 * 60 * 24 * 35;

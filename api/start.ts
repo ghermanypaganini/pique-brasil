@@ -1,5 +1,5 @@
-import { getSecret, json, preflight, readJson, unavailable } from './_lib/http';
-import { CHARACTERS, startToken, type Character } from './_lib/ranking';
+import { getSecret, json, preflight, readJson, unavailable } from './_lib/http.js';
+import { CHARACTERS, startToken, type Character } from './_lib/ranking.js';
 
 /** POST /api/start { character } -> { token }: assina o início da partida. */
 export async function POST(req: Request): Promise<Response> {

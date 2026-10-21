@@ -1,5 +1,5 @@
-import { clientIp, getKv, getSecret, json, preflight, readJson, unavailable } from './_lib/http';
-import { hashIp, submitScore, type ScoreInput } from './_lib/ranking';
+import { clientIp, getKv, getSecret, json, preflight, readJson, unavailable } from './_lib/http.js';
+import { hashIp, submitScore, type ScoreInput } from './_lib/ranking.js';
 
 /** POST /api/score { token, name, tag, score, distance, coins } -> posições no ranking. */
 export async function POST(req: Request): Promise<Response> {

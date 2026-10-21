@@ -1,4 +1,4 @@
-import { memoryKv, redisKv, type Kv } from './kv';
+import { memoryKv, redisKv, type Kv } from './kv.js';
 
 // Utilitários das Vercel Functions (handlers no formato Web: Request -> Response).
 

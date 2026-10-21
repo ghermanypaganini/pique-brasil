@@ -1,5 +1,5 @@
-import { getKv, json, preflight, readJson } from './_lib/http';
-import { trackSponsor } from './_lib/ranking';
+import { getKv, json, preflight, readJson } from './_lib/http.js';
+import { trackSponsor } from './_lib/ranking.js';
 
 /** POST /api/sponsor { id, event: 'impression' | 'click' }: contadores de patrocínio. */
 export async function POST(req: Request): Promise<Response> {
