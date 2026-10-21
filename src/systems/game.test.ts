@@ -254,9 +254,9 @@ describe('jogo', () => {
     const g = emptyGame();
     const v0 = g.speed;
     g.player.z = 200; // ~15 s de corrida
-    expect(g.speed / v0).toBeGreaterThan(1.2);
+    expect(g.speed - v0).toBeGreaterThan(2.5);
     g.player.z = 450; // ~30 s
-    expect(g.speed / v0).toBeGreaterThan(1.45);
+    expect(g.speed - v0).toBeGreaterThan(5);
     g.player.z = 20000;
     expect(g.speed).toBeLessThanOrEqual(BALANCE.speed.max);
     expect(g.speed).toBeGreaterThan(BALANCE.speed.max - 0.1);
