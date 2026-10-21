@@ -246,3 +246,162 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .toast.show { animation: none; opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ── Dia 3 ─────────────────────────────────────────────────────── */
+
+.menu-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.btn.small { font-size: 15px; padding: 8px 14px; min-height: 44px; }
+.btn.tiny { font-size: 13px; padding: 4px 10px; min-height: 32px; }
+.card.wide { width: min(100%, 380px); max-height: calc(100% - 16px); overflow-y: auto; }
+.card h3 { margin: 6px 0 0; font-size: 16px; }
+.small-note { font-size: 12px; color: #666; }
+.error { color: var(--red); font-weight: 700; min-height: 1em; font-size: 14px; }
+.rank-status { font-weight: 700; color: var(--green); min-height: 1.2em; }
+.toggle.dark { color: var(--ink); text-shadow: none; }
+.field { display: flex; flex-direction: column; gap: 4px; text-align: left; font-weight: 700; font-size: 14px; }
+.field select, .field input[type="range"] { font: inherit; width: 100%; min-height: 32px; accent-color: var(--green); }
+.toggle input { accent-color: var(--green); width: 20px; height: 20px; }
+.about summary { cursor: pointer; font-weight: 700; text-align: left; }
+.about p { font-size: 13px; text-align: left; }
+
+/* Apelido */
+.nick-input {
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 2px solid #ccc;
+  text-align: center;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.nick-input:focus { outline: none; border-color: var(--green); }
+
+/* Ranking */
+.tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.tabs button {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 999px;
+  padding: 8px 4px;
+  background: #ececec;
+  cursor: pointer;
+  min-height: 36px;
+}
+.tabs button.active { background: var(--green); color: #fff; }
+.board { list-style: none; margin: 0; padding: 0; max-height: 34vh; overflow-y: auto; text-align: left; }
+.board li, .me-row { display: grid; grid-template-columns: 2.4em 1fr auto auto; gap: 6px; padding: 6px 4px; border-bottom: 1px solid #eee; font-size: 15px; }
+.board li:nth-child(1) .pos::before { content: '🥇'; }
+.board li:nth-child(2) .pos::before { content: '🥈'; }
+.board li:nth-child(3) .pos::before { content: '🥉'; }
+.board li:nth-child(-n + 3) .pos { font-size: 0; }
+.board li:nth-child(-n + 3) .pos::before { font-size: 18px; }
+.board li.mine, .me-row { background: #fff3b0; border-radius: 8px; font-weight: 800; }
+.board .pos { font-weight: 800; color: #555; }
+.board .name, .me-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board .tag { color: #999; font-size: 12px; align-self: center; }
+.board .pts, .me-row .pts { font-weight: 800; text-align: right; }
+.me-row:empty { display: none; }
+.me-row { grid-template-columns: 2.4em 1fr auto; }
+.board-msg { color: #666; font-size: 14px; }
+.board-msg:empty { display: none; }
+.placar-bar { display: flex; height: 18px; border-radius: 9px; overflow: hidden; background: #ddd; }
+.placar-bar .pl { transition: width 0.4s ease; }
+.placar-bar .lule { background: var(--red); }
+.placar-bar .bolsonero { background: var(--yellow); }
+.placar-legend { display: flex; justify-content: space-between; font-size: 13px; margin-top: 4px; }
+
+/* Botões na tela (alternativa ao swipe) */
+.touch-pad {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+}
+.touch-pad.on { display: flex; }
+.touch-mid { display: flex; flex-direction: column; gap: 10px; }
+.touch-pad button {
+  pointer-events: auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 28px;
+  font-weight: 900;
+  color: var(--ink);
+  touch-action: none;
+}
+.touch-pad button:active { background: rgba(255, 255, 255, 0.95); }
+
+/* Tela de carregamento com patrocínio */
+#loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+  background: radial-gradient(circle at 50% 30%, #13a356, #0a6b34 70%);
+  transition: opacity 0.35s ease;
+}
+#loading.done { opacity: 0; pointer-events: none; }
+.ld-logo {
+  font-size: clamp(34px, 11vmin, 58px);
+  font-weight: 900;
+  color: var(--yellow);
+  -webkit-text-stroke: 2px #064d26;
+  text-shadow: 0 4px 0 #064d26;
+}
+.ld-spot { width: min(100%, 300px); aspect-ratio: 4 / 5; display: grid; }
+.ld-bar { width: min(80%, 260px); height: 10px; border-radius: 5px; background: rgba(0, 0, 0, 0.25); overflow: hidden; }
+.ld-bar i { display: block; height: 100%; width: 0; background: var(--yellow); animation: ld-fill 4s linear forwards; }
+@keyframes ld-fill { to { width: 100%; } }
+.ld-text { color: #fff; margin: 0; }
+.sp-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  text-decoration: none;
+  color: var(--ink);
+  animation: sp-in 0.3s ease;
+}
+.sp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sp-label {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+.sp-ad { gap: 12px; padding: 20px; border: 4px dashed var(--green); background: var(--paper); text-align: center; }
+.sp-ad strong { font-size: clamp(28px, 9vmin, 40px); color: var(--green); line-height: 1; }
+.sp-ad span { font-size: 16px; color: #444; }
+.sp-ad .btn { text-decoration: none; }
+@keyframes sp-in { from { opacity: 0; transform: scale(0.96); } }
+
+/* Reduzir piscadas e flashes */
+.reduce-flashes .meter-fill.danger,
+.reduce-flashes .warn,
+.reduce-flashes .toast.show { animation: none; }
+.reduce-flashes .toast.show { opacity: 1; transform: translate(-50%, 0); }

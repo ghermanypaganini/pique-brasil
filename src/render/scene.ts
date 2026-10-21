@@ -29,6 +29,7 @@ class Pool<T extends { root: THREE.Object3D }> {
 
 export interface RenderSettings {
   reduceShake: boolean;
+  reduceFlashes: boolean; // sem piscar (invulnerabilidade, sirenes)
   active: boolean; // false em pausa/menu: congela animações, tremor e objetos voando
 }
 
@@ -72,6 +73,7 @@ export class SceneRenderer {
   private pickupPool: Pool<{ root: THREE.Object3D }>;
 
   private runPhase = 0;
+  private flashes = false; // "reduzir flashes": luzes fixas em vez de piscando
   private time = 0;
   private camPos = new THREE.Vector3(0, 4, -6.5);
   private camTarget = new THREE.Vector3();
@@ -179,7 +181,7 @@ export class SceneRenderer {
       } else if (o.variant === 'police' && e.view.rig) {
         e.view.rig.armR.rotation.x = -1.2 + Math.sin(this.time * 6) * 0.5; // gesticula
         const siren = root.getObjectByName('siren');
-        if (siren) siren.visible = Math.floor(this.time * 4) % 2 === 0;
+        if (siren) siren.visible = this.flashes || Math.floor(this.time * 4) % 2 === 0;
       }
 
       if (o.knocked) {
@@ -244,6 +246,7 @@ export class SceneRenderer {
   render(game: Game, frameDt: number, width: number, settings: RenderSettings): void {
     // Fora da corrida (pausa, menu, Continuar) o tempo visual para.
     const dt = settings.active ? frameDt : 0;
+    this.flashes = settings.reduceFlashes;
     this.time += dt;
     const p = game.player;
     this.ensureCrowd(game, width);
@@ -283,11 +286,11 @@ export class SceneRenderer {
       r.root.position.y = 0.55;
       r.armL.rotation.x = r.armR.rotation.x = -2.8;
       for (const c of this.officialCar.children) {
-        if (c.name === 'siren') c.visible = Math.floor(this.time * 6) % 2 === 0;
+        if (c.name === 'siren') c.visible = this.flashes || Math.floor(this.time * 6) % 2 === 0;
       }
     }
     // Pisca durante a invulnerabilidade
-    r.root.visible = !(p.invuln > 0 && !driving && Math.floor(this.time * 14) % 2 === 0);
+    r.root.visible = settings.reduceFlashes || !(p.invuln > 0 && !driving && Math.floor(this.time * 14) % 2 === 0);
 
     // Habeas Corpus: pergaminho orbitando
     this.habeasPaper.visible = p.powers.habeas;
@@ -306,7 +309,7 @@ export class SceneRenderer {
       const a = this.time * 5;
       this.saci.position.set(p.x + Math.cos(a) * 1.3, p.y + 0.6 + Math.sin(this.time * 9) * 0.2, p.z + Math.sin(a) * 1.3);
       this.saci.rotation.y = -a + Math.PI;
-      const ending = p.powers.saci < 2 && Math.floor(this.time * 8) % 2 === 0; // avisa que está acabando
+      const ending = !settings.reduceFlashes && p.powers.saci < 2 && Math.floor(this.time * 8) % 2 === 0; // avisa que está acabando
       (this.whirl.material as THREE.MeshBasicMaterial).opacity = ending ? 0.1 : 0.35;
     }
 

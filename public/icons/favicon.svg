@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#0a9c4a"/>
+  <path d="M256 70 L452 256 L256 442 L60 256 Z" fill="#ffd400"/>
+  <circle cx="256" cy="256" r="118" fill="#1e3a8a"/>
+  <!-- Corredor estilizado -->
+  <g fill="#ffffff">
+    <circle cx="282" cy="168" r="26"/>
+    <path d="M232 206 l58 -6 l40 46 l40 -6 l4 26 l-56 10 l-22 -24 l-14 44 l42 34 l-10 62 l-28 -4 l8 -46 l-48 -32 l-22 52 l-58 2 l0 -28 l40 -2 l40 -96 l-24 4 l-22 34 l-24 -14 z"/>
+  </g>
+</svg>

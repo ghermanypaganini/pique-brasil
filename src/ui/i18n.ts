@@ -1,83 +1,32 @@
-// Textos do jogo. O dia 3 move isto para data/i18n/*.json; a interface já usa t() desde o início.
+import en from '../data/i18n/en.json';
+import pt from '../data/i18n/pt-BR.json';
+import { loadSave, writeSave, type Language } from '../services/save';
 
-const pt = {
-  title: 'Pique-Brasil',
-  choose: 'Escolha seu personagem',
-  play: 'Correr!',
-  lule: 'Lule',
-  bolsonero: 'Bolsonero',
-  best: 'Recorde',
-  bank: 'Saldo',
-  paused: 'Pausado',
-  resume: 'Continuar',
-  quit: 'Sair',
-  caught: 'A multidão te pegou!',
-  continueFor: 'Continuar por',
-  giveUp: 'Desistir',
-  missing: 'Faltam',
-  gameOver: 'Fim de jogo',
-  score: 'Pontos',
-  distance: 'Distância',
-  money: 'Dinheiro',
-  newBest: 'Novo recorde!',
-  again: 'Correr de novo',
-  menu: 'Menu',
-  lungeWarning: 'A multidão vai avançar!',
-  immunity: 'Imunidade Parlamentar!',
-  habeas: 'Habeas Corpus!',
-  habeasUsed: 'Habeas Corpus concedido!',
-  saci: 'Redemoinho do Saci!',
-  vorcano: 'Chuva de Maletas!',
-  satireTitle: 'Aviso',
-  satire:
-    'Este jogo é uma obra de sátira e paródia, feita para humor. Os personagens são caricaturas fictícias e não têm vínculo com pessoas reais, partidos ou campanhas. Nenhum lado é apoiado ou atacado.',
-  understood: 'Entendi',
-  howTo: 'Deslize para os lados para trocar de faixa, para cima para pular e para baixo para rolar.',
-  howToKeys: 'Setas ou WASD · Espaço pula · Esc pausa',
-  rotate: 'Gire o celular para a posição vertical',
-  reduceShake: 'Reduzir tremor de tela',
-};
+// Textos em data/i18n/*.json (PRD 9.3). Idioma: escolhido nas configurações ou o do navegador.
 
-type Dict = typeof pt;
+export type TextKey = keyof typeof pt;
 
-const en: Dict = {
-  title: 'Run Brazil',
-  choose: 'Choose your character',
-  play: 'Run!',
-  lule: 'Lule',
-  bolsonero: 'Bolsonero',
-  best: 'Best',
-  bank: 'Balance',
-  paused: 'Paused',
-  resume: 'Resume',
-  quit: 'Quit',
-  caught: 'The crowd caught you!',
-  continueFor: 'Continue for',
-  giveUp: 'Give up',
-  missing: 'Missing',
-  gameOver: 'Game over',
-  score: 'Score',
-  distance: 'Distance',
-  money: 'Money',
-  newBest: 'New record!',
-  again: 'Run again',
-  menu: 'Menu',
-  lungeWarning: 'The crowd is charging!',
-  immunity: 'Parliamentary Immunity!',
-  habeas: 'Habeas Corpus!',
-  habeasUsed: 'Habeas Corpus granted!',
-  saci: "Saci's Whirlwind!",
-  vorcano: 'Briefcase Rain!',
-  satireTitle: 'Notice',
-  satire:
-    'This game is a work of satire and parody, made for humor. The characters are fictional caricatures with no connection to real people, parties or campaigns. No side is endorsed or attacked.',
-  understood: 'Got it',
-  howTo: 'Swipe sideways to change lanes, up to jump and down to roll.',
-  howToKeys: 'Arrows or WASD · Space jumps · Esc pauses',
-  rotate: 'Rotate your phone to portrait',
-  reduceShake: 'Reduce screen shake',
-};
+const DICTS: Record<Language, Record<TextKey, string>> = { 'pt-BR': pt, en };
 
-const lang: Dict = navigator.language?.toLowerCase().startsWith('pt') ? pt : en;
+function detect(): Language {
+  const saved = loadSave().language;
+  if (saved) return saved;
+  return navigator.language?.toLowerCase().startsWith('pt') ? 'pt-BR' : 'en';
+}
 
-export const t = (key: keyof Dict): string => lang[key];
+export const language: Language = detect();
+const dict = DICTS[language];
+document.documentElement.lang = language;
+
+/** Texto traduzido; `{n}` e afins são trocados pelos valores de `vars`. */
+export function t(key: TextKey, vars: Record<string, string | number> = {}): string {
+  return dict[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? `{${k}}`));
+}
+
+/** Troca o idioma e recarrega (a interface é montada uma vez com os textos). */
+export function setLanguage(lang: Language): void {
+  const save = loadSave();
+  save.language = lang;
+  writeSave(save);
+  location.reload();
+}

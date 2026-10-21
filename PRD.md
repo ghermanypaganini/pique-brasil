@@ -2,10 +2,10 @@
 
 | Campo | Valor |
 |---|---|
-| Versão | 0.9 (PRD fechado para a v1) |
+| Versão | 1.0 (v1 implementada; ver seção 16) |
 | Data | 2026-10-21 |
 | Autor | ghermanypaganini@gmail.com |
-| Status | Fechado para a v1 — pronto para desenvolvimento |
+| Status | v1 implementada — falta publicar (seção 16.3) |
 
 > **Decisões tomadas (v0.2):** 3D low-poly com Three.js · mobile primeiro, também desktop · projeto hobby/portfólio, sem monetização · v1 só local (sem backend).
 >
@@ -592,3 +592,24 @@ public/
 | **3 — Lançamento** | Ranking e Placar da Torcida (API + Redis + filtro de nomes); patrocínio e "ANUNCIE AQUI"; i18n pt/en; PWA; áudio; acessibilidade básica; teste em celular real (Android e iPhone); build itch.io; submissões Poki/CrazyGames | v1 publicada |
 
 **Corte de emergência** (se o dia 2 atrasar): sair sem Vorcano/Cuca e com 2 power-ups (Imunidade Parlamentar e Habeas Corpus). Ranking e patrocínio não são cortados, porque são pedidos explícitos da v1.
+
+## 16. Status da v1 (implementação)
+
+### 16.1 Entregue
+Tudo da seção 15.1, incluindo os itens de corte de emergência (Vorcano, Cuca e os 3 power-ups entraram). Código em https://github.com/ghermanypaganini/pique-brasil; instruções de publicação no `README.md`.
+
+### 16.2 Diferenças em relação ao plano
+| Item do PRD | Como ficou | Motivo |
+|---|---|---|
+| Cenário com packs CC0 (Kenney/Quaternius) | Cenário do Rio modelado por código | Sem downloads; estilo consistente com os personagens |
+| Arte 2D gerada por IA (logo, retratos) | Retratos renderizados dos modelos 3D; logo em texto estilizado; ícone do PWA em SVG | Sem custo de créditos; pode ser trocado depois |
+| Áudio com Howler.js e arquivos de som | Áudio sintetizado com Web Audio (efeitos, multidão e trilha de samba) | Nenhum arquivo para baixar ou licenciar |
+| Backend Supabase (proposta antiga) | Vercel Functions + Upstash Redis | Já definido na v0.8 |
+| Balanceamento | Bot que desvia perfeitamente dura 110–229 s (meta 60–120 s) | Calibrar com jogadores reais (seção 16.3) |
+
+### 16.3 Pendências (dependem do dono do projeto)
+1. Conectar o repositório na Vercel e criar o Upstash Redis + variáveis `RUN_SECRET` e `ADMIN_KEY` (README, "Publicação").
+2. Informar o e-mail do card "ANUNCIE AQUI" (`public/sponsors/sponsors.json`, campo `contact`).
+3. Testar em celular real (Android e iPhone) e calibrar a dificuldade em `src/data/balance.ts`.
+4. Publicar no itch.io (`npm run build:itch`) e enviar para Poki/CrazyGames (`npm run build:poki`, `npm run build:crazygames`), conferindo as regras de conteúdo de cada portal.
+
