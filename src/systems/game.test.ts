@@ -250,6 +250,18 @@ describe('jogo', () => {
     expect(g.pickups.every((k) => k.kind === 'case' || k.kind === 'bill')).toBe(true);
   });
 
+  it('a velocidade aumenta de forma perceptível no começo e estabiliza no máximo', () => {
+    const g = emptyGame();
+    const v0 = g.speed;
+    g.player.z = 200; // ~15 s de corrida
+    expect(g.speed / v0).toBeGreaterThan(1.2);
+    g.player.z = 450; // ~30 s
+    expect(g.speed / v0).toBeGreaterThan(1.45);
+    g.player.z = 20000;
+    expect(g.speed).toBeLessThanOrEqual(BALANCE.speed.max);
+    expect(g.speed).toBeGreaterThan(BALANCE.speed.max - 0.1);
+  });
+
   it('maleta dá boost e soma 50', () => {
     const g = emptyGame();
     g.pickups.push({ id: 1, kind: 'case', lane: 1, z: 5, y: 0.9, taken: false });

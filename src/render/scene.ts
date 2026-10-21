@@ -7,6 +7,7 @@ import { animateRun, makeChaser, makeCuca, makeRunner, makeSaci, type Rig } from
 import { disposeTree } from './materials';
 import { makeArmoredTruck, makeObstacleView, makeOfficialCar, makePickupMesh, type ObstacleView } from './props';
 import { Scenery } from './scenery';
+import { SpeedLines } from './speedlines';
 
 const LW = BALANCE.track.laneWidth;
 
@@ -50,6 +51,7 @@ export class SceneRenderer {
   private camera = new THREE.PerspectiveCamera(70, 9 / 16, 0.1, 420);
   private world = new THREE.Group();
   private scenery = new Scenery();
+  private speedLines = new SpeedLines();
 
   private runner: Rig | null = null;
   private crowd: Rig[] = [];
@@ -90,7 +92,7 @@ export class SceneRenderer {
     sun.position.set(-5, 12, -4);
     this.scene.add(sun);
     this.scene.add(this.world);
-    this.world.add(this.scenery.root);
+    this.world.add(this.scenery.root, this.speedLines.root);
 
     this.obstaclePool = new Pool(this.world);
     this.pickupPool = new Pool(this.world);
@@ -384,7 +386,10 @@ export class SceneRenderer {
   private renderCamera(game: Game, dt: number, settings: RenderSettings, running: boolean): void {
     const p = game.player;
     const speedT = Math.max(0, (game.speed - BALANCE.speed.base) / (BALANCE.speed.max - BALANCE.speed.base));
-    const targetFov = 66 + Math.min(1, speedT) * 10 + (p.boost > 0 ? 6 : 0) + (p.powers.immunity > 0 ? 8 : 0);
+    const targetFov = 64 + Math.min(1, speedT) * 14 + (p.boost > 0 ? 6 : 0) + (p.powers.immunity > 0 ? 8 : 0);
+    // Linhas de velocidade (desligadas com "reduzir tremor", que é a opção de menos movimento).
+    const lines = running && !settings.reduceShake ? Math.min(1, speedT * 1.3 + (p.boost > 0 || p.powers.immunity > 0 ? 0.4 : 0)) : 0;
+    this.speedLines.update(p.z, lines);
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 4);
     this.camera.updateProjectionMatrix();
     const target = this.camTarget.set(p.x * 0.7, 3.6 + p.y * 0.7, p.z - 6.0 - Math.min(1, speedT) * 1.2);

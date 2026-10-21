@@ -126,7 +126,8 @@ export class Game {
   }
 
   get speed(): number {
-    const base = Math.min(BALANCE.speed.max, BALANCE.speed.base + BALANCE.speed.perMeter * this.player.z);
+    const V = BALANCE.speed;
+    const base = V.base + (V.max - V.base) * (1 - Math.exp(-this.player.z / V.rampMeters));
     const boost = this.player.boost > 0 ? 1 + BALANCE.speed.caseBoost : 1;
     const immunity = this.player.powers.immunity > 0 ? PW.immunity.speedMul : 1;
     return base * this.player.speedMul * boost * immunity;

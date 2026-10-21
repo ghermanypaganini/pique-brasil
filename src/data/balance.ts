@@ -24,9 +24,11 @@ export const BALANCE = {
   },
 
   speed: {
-    base: 11, // m/s no início
-    perMeter: 0.0045, // ganho por metro percorrido
-    max: 28,
+    // Curva que sobe rápido no começo e estabiliza: v = base + (max - base) * (1 - e^(-distância / rampMeters))
+    // ≈ 12 m/s na largada, 15 aos 15 s, 18 aos 30 s, 23 em 1 min, perto de 28 em 2 min.
+    base: 12, // m/s no início
+    max: 30,
+    rampMeters: 1000,
     caseBoost: 0.3, // +30% ao pegar maleta
     caseBoostTime: 1.5, // s
   },
