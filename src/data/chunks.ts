@@ -1,7 +1,8 @@
 // Trechos de pista pré-desenhados. Cada linha é [z relativo ao início do trecho, padrão de 3 faixas].
 //
-// Obstáculos:  L baixa · H alta · B ônibus · S banca · R rampa + teto · V veículo vindo · O buraco
-// Coletáveis:  c fileira de moedas · a arco de moedas (sobre obstáculo) · n nota · m maleta
+// Obstáculos:  L baixa (cavalete/blitz) · H alta (faixa/boneco de Olinda) · B ônibus · S banca
+//              R rampa + carro alegórico · V veículo vindo · O buraco · X bumba-meu-boi · D bêbado
+// Coletáveis:  c fileira de moedas · a arco de moedas (sobre obstáculo) · n nota · m maleta · p power-up
 // .            faixa vazia
 //
 // O gerador espelha os trechos aleatoriamente (faixa 0 <-> 2), então basta desenhar um lado.
@@ -22,6 +23,7 @@ export const CHUNKS: ChunkDef[] = [
     rows: [
       [4, 'c..'],
       [20, '.c.'],
+      [30, 'p..'],
     ],
   },
   {
@@ -53,6 +55,7 @@ export const CHUNKS: ChunkDef[] = [
       [12, '.H.'],
       [8, '.c.'],
       [24, 'S..'],
+      [30, '..p'],
     ],
   },
   {
@@ -65,7 +68,48 @@ export const CHUNKS: ChunkDef[] = [
     ],
   },
 
+  {
+    name: 'blitz',
+    tier: 0,
+    length: 36,
+    rows: [
+      [10, 'LL.'],
+      [10, 'a.c'],
+      [26, '.p.'],
+    ],
+  },
+  {
+    name: 'bebado',
+    tier: 0,
+    length: 44,
+    rows: [
+      [30, '.D.'],
+      [6, 'c.c'],
+    ],
+  },
+
   // ── Nível 1 ───────────────────────────────────────────────────────
+  {
+    name: 'bloco-de-olinda',
+    tier: 1,
+    length: 40,
+    rows: [
+      [10, 'HH.'],
+      [8, '..c'],
+      [24, '.HH'],
+      [22, 'c..'],
+    ],
+  },
+  {
+    name: 'boi-dancando',
+    tier: 1,
+    length: 46,
+    rows: [
+      [32, '.X.'],
+      [6, 'ccc'],
+      [42, 'n.n'],
+    ],
+  },
   {
     name: 'rampa-telhado',
     tier: 1,
@@ -122,10 +166,22 @@ export const CHUNKS: ChunkDef[] = [
       [6, '.cc'],
       [16, 'c..'],
       [30, 'n..'],
+      [38, '.p.'],
     ],
   },
 
   // ── Nível 2 ───────────────────────────────────────────────────────
+  {
+    name: 'bebados-e-boi',
+    tier: 2,
+    length: 52,
+    rows: [
+      [22, 'D.D'],
+      [44, '.X.'],
+      [6, '.c.'],
+      [30, '.p.'],
+    ],
+  },
   {
     name: 'slalom-onibus',
     tier: 2,
@@ -137,6 +193,7 @@ export const CHUNKS: ChunkDef[] = [
       [4, '..c'],
       [20, 'c..'],
       [36, '..c'],
+      [48, 'p..'],
     ],
   },
   {

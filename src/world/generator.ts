@@ -1,6 +1,6 @@
-import { BALANCE } from '../data/balance';
+import { BALANCE, laneX } from '../data/balance';
 import { CHUNKS, type ChunkDef } from '../data/chunks';
-import type { Lane, Obstacle, ObstacleKind, Pickup } from '../systems/types';
+import type { Lane, Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupKind, PowerKind } from '../systems/types';
 import { groundAt } from './surface';
 
 export type Rng = () => number;
@@ -22,12 +22,31 @@ export const tierForDistance = (distance: number): 0 | 1 | 2 =>
 
 const OB = BALANCE.obstacles;
 
-interface Ids {
+export interface Ids {
   next: number;
 }
 
-function makeObstacle(ids: Ids, kind: ObstacleKind, lane: Lane, z: number): Obstacle {
-  const base = { id: ids.next++, kind, lane, z, prevZ: z, speed: 0, hit: false, knocked: false };
+export function makeObstacle(
+  ids: Ids,
+  kind: ObstacleKind,
+  lane: Lane,
+  z: number,
+  variant: ObstacleVariant = null,
+): Obstacle {
+  const base = {
+    id: ids.next++,
+    kind,
+    variant,
+    lane,
+    x: laneX(lane),
+    z,
+    prevZ: z,
+    speed: 0,
+    dir: 1,
+    timer: 0,
+    hit: false,
+    knocked: false,
+  };
   switch (kind) {
     case 'low':
       return { ...base, length: OB.low.length, height: OB.low.height };
@@ -43,6 +62,11 @@ function makeObstacle(ids: Ids, kind: ObstacleKind, lane: Lane, z: number): Obst
       return { ...base, length: OB.vehicle.length, height: OB.vehicle.height, speed: OB.vehicle.speed };
     case 'hole':
       return { ...base, length: OB.hole.length, height: 0 };
+    case 'boi':
+      // Começa andando em direção ao centro da pista.
+      return { ...base, length: OB.boi.length, height: OB.boi.height, dir: laneX(lane) > 0 ? -1 : 1 };
+    case 'drunk':
+      return { ...base, length: OB.drunk.length, height: OB.drunk.height, speed: OB.drunk.speed, dir: lane };
   }
 }
 
@@ -53,6 +77,8 @@ const OBSTACLE_CHARS: Record<string, ObstacleKind> = {
   S: 'stand',
   V: 'vehicle',
   O: 'hole',
+  X: 'boi',
+  D: 'drunk',
 };
 
 export interface ChunkOutput {
@@ -63,12 +89,16 @@ export interface ChunkOutput {
 export interface BuildOptions {
   mirror: boolean;
   allowCase: boolean;
+  /** Power-up a colocar no lugar de 'p' (null: vira nota). */
+  power: PowerKind | null;
+  rng?: Rng;
 }
 
 /** Transforma a definição de um trecho em obstáculos e coletáveis posicionados no mundo. */
 export function buildChunk(def: ChunkDef, startZ: number, ids: Ids, opts: BuildOptions): ChunkOutput {
   const obstacles: Obstacle[] = [];
   const pickups: Pickup[] = [];
+  const rng = opts.rng ?? Math.random;
   const toLane = (i: number): Lane => (opts.mirror ? 2 - i : i) as Lane;
 
   // 1ª passada: obstáculos (os coletáveis precisam saber a altura do chão).
@@ -79,40 +109,52 @@ export function buildChunk(def: ChunkDef, startZ: number, ids: Ids, opts: BuildO
       const z = startZ + dz;
       if (ch === 'R') {
         obstacles.push(makeObstacle(ids, 'ramp', lane, z));
-        const roof = makeObstacle(ids, 'bus', lane, z + OB.ramp.length);
+        const roof = makeObstacle(ids, 'bus', lane, z + OB.ramp.length, 'roof');
         roof.length = OB.roof.length;
         obstacles.push(roof);
+      } else if (ch === 'L') {
+        obstacles.push(makeObstacle(ids, 'low', lane, z, rng() < OB.policeChance ? 'police' : 'cavalete'));
+      } else if (ch === 'H') {
+        obstacles.push(makeObstacle(ids, 'high', lane, z, rng() < OB.olindaChance ? 'olinda' : 'faixa'));
       } else if (OBSTACLE_CHARS[ch]) {
         obstacles.push(makeObstacle(ids, OBSTACLE_CHARS[ch], lane, z));
       }
     }
   }
 
-  const coinAt = (kind: Pickup['kind'], lane: Lane, z: number, lift = 0) => {
+  const put = (kind: PickupKind, lane: Lane, z: number, lift = 0) => {
     pickups.push({ id: ids.next++, kind, lane, z, y: groundAt(obstacles, lane, z) + 0.9 + lift, taken: false });
   };
 
   let caseUsed = false;
+  let powerUsed = false;
   for (const [dz, pattern] of def.rows) {
     for (let i = 0; i < 3; i++) {
       const ch = pattern[i];
       const lane = toLane(i);
       const z = startZ + dz;
       if (ch === 'c') {
-        for (let k = 0; k < 8; k++) coinAt('coin', lane, z + k * 1.6);
+        for (let k = 0; k < 8; k++) put('coin', lane, z + k * 1.6);
       } else if (ch === 'a') {
         for (let k = -2; k <= 2; k++) {
           const t = k / 2;
-          coinAt('coin', lane, z + k * 1.3, 1.5 * (1 - t * t));
+          put('coin', lane, z + k * 1.3, 1.5 * (1 - t * t));
         }
       } else if (ch === 'n') {
-        coinAt('bill', lane, z);
+        put('bill', lane, z);
       } else if (ch === 'm') {
         if (opts.allowCase && !caseUsed) {
-          coinAt('case', lane, z);
+          put('case', lane, z);
           caseUsed = true;
         } else {
-          coinAt('bill', lane, z);
+          put('bill', lane, z);
+        }
+      } else if (ch === 'p') {
+        if (opts.power && !powerUsed) {
+          put(opts.power, lane, z, 0.2);
+          powerUsed = true;
+        } else {
+          put('bill', lane, z);
         }
       }
     }
@@ -121,10 +163,18 @@ export function buildChunk(def: ChunkDef, startZ: number, ids: Ids, opts: BuildO
   return { obstacles, pickups };
 }
 
+export function pickPower(rng: Rng): PowerKind {
+  const w = BALANCE.powerups.weights;
+  const r = rng() * (w.saci + w.habeas + w.immunity);
+  if (r < w.saci) return 'saci';
+  if (r < w.saci + w.habeas) return 'habeas';
+  return 'immunity';
+}
+
 /** Gera a pista à frente do jogador, trecho a trecho. */
 export class TrackGenerator {
   nextZ: number;
-  private ids: Ids = { next: 1 };
+  readonly ids: Ids = { next: 1 };
   private lastName = '';
 
   constructor(
@@ -134,8 +184,8 @@ export class TrackGenerator {
     this.nextZ = startZ;
   }
 
-  /** Sorteia o próximo trecho. `allowCase` evita maletas em sequência. */
-  next(allowCase: boolean): ChunkOutput & { def: ChunkDef } {
+  /** Sorteia o próximo trecho. `allowCase`/`allowPower` evitam maletas e power-ups em sequência. */
+  next(allowCase: boolean, allowPower: boolean): ChunkOutput & { def: ChunkDef } {
     const tier = tierForDistance(this.nextZ);
     // Trechos do nível atual têm peso maior; níveis anteriores continuam aparecendo.
     const pool = CHUNKS.filter((c) => c.tier <= tier && c.name !== this.lastName);
@@ -151,7 +201,12 @@ export class TrackGenerator {
       }
     }
     this.lastName = def.name;
-    const out = buildChunk(def, this.nextZ, this.ids, { mirror: this.rng() < 0.5, allowCase });
+    const out = buildChunk(def, this.nextZ, this.ids, {
+      mirror: this.rng() < 0.5,
+      allowCase,
+      power: allowPower ? pickPower(this.rng) : null,
+      rng: this.rng,
+    });
     this.nextZ += def.length;
     return { ...out, def };
   }

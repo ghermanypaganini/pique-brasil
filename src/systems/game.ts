@@ -1,4 +1,4 @@
-import { BALANCE, laneX } from '../data/balance';
+import { BALANCE, laneOf, laneX } from '../data/balance';
 import { TrackGenerator, makeRng, type Rng } from '../world/generator';
 import { groundAt } from '../world/surface';
 import type {
@@ -10,14 +10,20 @@ import type {
   ObstacleKind,
   Phase,
   Pickup,
+  PowerKind,
   StumbleKind,
 } from './types';
+import { isMoney } from './types';
 
 const P = BALANCE.player;
 const C = BALANCE.chase;
 const S = BALANCE.stumble;
 
-const isSolid = (k: ObstacleKind) => k === 'bus' || k === 'stand' || k === 'vehicle';
+const PW = BALANCE.powerups;
+const OB = BALANCE.obstacles;
+const LW = BALANCE.track.laneWidth;
+
+const isSolid = (k: ObstacleKind) => k === 'bus' || k === 'stand' || k === 'vehicle' || k === 'boi';
 
 export interface PlayerState {
   lane: Lane;
@@ -37,6 +43,11 @@ export interface PlayerState {
   boost: number; // tempo restante de boost da maleta
   stumble: number; // tempo restante da animação de tropeço
   stumbleKind: StumbleKind | null;
+  powers: {
+    immunity: number; // s restantes de Imunidade Parlamentar
+    habeas: boolean; // Habeas Corpus guardado (anula o próximo tropeço)
+    saci: number; // s restantes do Redemoinho do Saci (ímã)
+  };
 }
 
 export interface GameOptions {
@@ -65,9 +76,14 @@ export class Game {
   lungeActive = 0; // tempo restante da investida
   private nextLungeAt: number = C.lunge.firstAfter;
 
+  vorcanoActive = 0; // s restantes da Chuva de Maletas
+  private nextVorcanoAt: number = BALANCE.vorcano.firstAfter;
+  private vorcanoDropT = 0;
+
   private buffer: { action: Action; age: number }[] = [];
   private lastStumbleAt = -Infinity;
   private lastCaseAt = -Infinity;
+  private lastPowerAt = -Infinity;
   private rng: Rng;
   private gen: TrackGenerator;
 
@@ -94,6 +110,7 @@ export class Game {
       boost: 0,
       stumble: 0,
       stumbleKind: null,
+      powers: { immunity: 0, habeas: false, saci: 0 },
     };
     this.fillTrack();
   }
@@ -111,7 +128,8 @@ export class Game {
   get speed(): number {
     const base = Math.min(BALANCE.speed.max, BALANCE.speed.base + BALANCE.speed.perMeter * this.player.z);
     const boost = this.player.boost > 0 ? 1 + BALANCE.speed.caseBoost : 1;
-    return base * this.player.speedMul * boost;
+    const immunity = this.player.powers.immunity > 0 ? PW.immunity.speedMul : 1;
+    return base * this.player.speedMul * boost * immunity;
   }
 
   get playerHeight(): number {
@@ -152,11 +170,12 @@ export class Game {
 
   /** Faixa em que o jogador está de fato (pela posição x, não pelo destino da troca de faixa). */
   get currentLane(): Lane {
-    return (Math.round(this.player.x / BALANCE.track.laneWidth) + 1) as Lane;
+    return laneOf(this.player.x) as Lane;
   }
 
   /** Chão sob o jogador: só superfícies que ele alcança (não "sobe" num teto ao lado). */
   get groundHeight(): number {
+    if (this.player.powers.immunity > 0) return 0; // o carro oficial anda no asfalto
     return groundAt(this.obstacles, this.currentLane, this.player.z, this.player.y + P.stepUp);
   }
 
@@ -210,13 +229,7 @@ export class Game {
     // Avanço
     p.z += this.speed * dt;
 
-    // Veículos vindo na direção do jogador
-    for (const o of this.obstacles) {
-      o.prevZ = o.z;
-      if (o.speed > 0 && !o.knocked && o.z - p.z < BALANCE.obstacles.vehicle.activateDistance) {
-        o.z -= o.speed * dt;
-      }
-    }
+    this.moveObstacles(dt);
 
     // Troca de faixa (suavizada)
     if (p.laneT < 1) {
@@ -233,12 +246,53 @@ export class Game {
     this.fillTrack();
   }
 
+  /** Veículos vêm de frente; o boi dança de lado; o bêbado anda em zigue-zague. */
+  private moveObstacles(dt: number): void {
+    const pz = this.player.z;
+    for (const o of this.obstacles) {
+      o.prevZ = o.z;
+      if (o.knocked) continue;
+      const dist = o.z - pz;
+      switch (o.kind) {
+        case 'vehicle':
+          if (dist < OB.vehicle.activateDistance) o.z -= o.speed * dt;
+          break;
+        case 'boi':
+          if (dist < OB.boi.activateDistance) {
+            o.x += o.dir * OB.boi.lateralSpeed * dt;
+            if (Math.abs(o.x) >= LW) {
+              o.x = Math.sign(o.x) * LW;
+              o.dir = -o.dir;
+            }
+            o.lane = laneOf(o.x) as Lane;
+          }
+          break;
+        case 'drunk':
+          if (dist < OB.drunk.activateDistance) {
+            o.z -= o.speed * dt;
+            o.timer -= dt;
+            if (o.timer <= 0) {
+              const options = [o.lane - 1, o.lane + 1].filter((l) => l >= 0 && l <= 2);
+              o.dir = options[Math.floor(this.rng() * options.length)];
+              o.timer = OB.drunk.retargetMin + this.rng() * (OB.drunk.retargetMax - OB.drunk.retargetMin);
+            }
+            const step = OB.drunk.lateralSpeed * dt;
+            o.x += Math.max(-step, Math.min(step, laneX(o.dir) - o.x));
+            o.lane = laneOf(o.x) as Lane;
+          }
+          break;
+      }
+    }
+  }
+
   private processInput(dt: number): void {
     const p = this.player;
+    const driving = p.powers.immunity > 0; // no carro oficial não pula nem rola
     const keep: typeof this.buffer = [];
     for (const b of this.buffer) {
       b.age += dt;
       let done = false;
+      if (driving && (b.action === 'jump' || b.action === 'roll')) continue;
       switch (b.action) {
         case 'left':
         case 'right':
@@ -276,10 +330,14 @@ export class Game {
     if (target < 0 || target > 2) return;
     // Bater de lado num obstáculo grande: tropeço leve e fica na faixa.
     const blocker = this.solidAt(target as Lane, p.z - P.halfDepth, p.z + P.halfDepth);
-    if (blocker && p.invuln <= 0) {
+    if (blocker && p.powers.immunity > 0) {
+      blocker.hit = blocker.knocked = true; // o carro oficial tira do caminho
+    } else if (blocker && p.invuln <= 0) {
       blocker.hit = true;
-      this.stumble('light', blocker.kind);
-      return;
+      if (!this.useHabeas(blocker)) {
+        this.stumble('light', blocker.kind);
+        return;
+      }
     }
     this.moveToLane(target as Lane);
   }
@@ -312,6 +370,7 @@ export class Game {
       let kind: StumbleKind | null = null;
       switch (o.kind) {
         case 'low':
+        case 'drunk':
           if (p.y < o.height) kind = 'light';
           break;
         case 'high':
@@ -322,7 +381,8 @@ export class Game {
           break;
         case 'bus':
         case 'stand':
-        case 'vehicle': {
+        case 'vehicle':
+        case 'boi': {
           if (p.y >= o.height - P.stepUp) break; // por cima
           // Frente: no passo anterior o jogador ainda não tinha alcançado o início do obstáculo.
           const wasBefore = prevZ + P.halfDepth <= o.prevZ + 0.01;
@@ -335,10 +395,15 @@ export class Game {
       if (!kind) continue;
 
       o.hit = true;
+      if (p.powers.immunity > 0) {
+        o.knocked = true; // tudo sai voando na frente do carro oficial
+        continue;
+      }
       if (p.invuln > 0) {
         if (isSolid(o.kind)) o.knocked = true;
         continue;
       }
+      if (this.useHabeas(o)) continue;
 
       if (isSolid(o.kind)) {
         if (kind === 'strong') {
@@ -355,6 +420,17 @@ export class Game {
       }
       this.stumble(kind, o.kind);
     }
+  }
+
+  /** Habeas Corpus anula o tropeço: o obstáculo sai do caminho e o jogador segue. */
+  private useHabeas(o: Obstacle): boolean {
+    const p = this.player;
+    if (!p.powers.habeas) return false;
+    p.powers.habeas = false;
+    o.knocked = true;
+    p.invuln = S.invulnTime;
+    this.events.push({ type: 'shieldUsed' });
+    return true;
   }
 
   private moveToLane(lane: Lane): void {
@@ -424,20 +500,45 @@ export class Game {
     const lane = this.currentLane;
     const r = BALANCE.pickups.radius;
     const midY = p.y + this.playerHeight / 2;
+    const magnet = p.powers.saci > 0;
     for (const k of this.pickups) {
-      if (k.taken || k.lane !== lane) continue;
-      if (k.z < prevZ - r || k.z > p.z + r) continue;
-      if (Math.abs(k.y - midY) > 1.3) continue;
-      k.taken = true;
-      const cfg = BALANCE.pickups[k.kind];
-      this.coins += cfg.value;
-      this.collected += cfg.value;
-      this.chase += cfg.chase;
-      if (k.kind === 'case') {
-        p.boost = BALANCE.speed.caseBoostTime;
-        this.lungeActive = 0; // maleta escapa da investida
+      if (k.taken) continue;
+      const money = isMoney(k.kind);
+      // O Redemoinho do Saci puxa o dinheiro das 3 faixas, em qualquer altura.
+      const pulled = magnet && money && k.z >= prevZ - r && k.z <= p.z + PW.saci.reachAhead;
+      if (!pulled) {
+        if (k.lane !== lane) continue;
+        if (k.z < prevZ - r || k.z > p.z + r) continue;
+        if (Math.abs(k.y - midY) > 1.3) continue;
       }
+      k.taken = true;
+      if (isMoney(k.kind)) this.collectMoney(k.kind);
+      else this.activatePower(k.kind);
       this.events.push({ type: 'pickup', kind: k.kind });
+    }
+  }
+
+  private collectMoney(kind: 'coin' | 'bill' | 'case'): void {
+    const cfg = BALANCE.pickups[kind];
+    this.coins += cfg.value;
+    this.collected += cfg.value;
+    this.chase += cfg.chase;
+    if (kind === 'case') {
+      this.player.boost = BALANCE.speed.caseBoostTime;
+      this.lungeActive = 0; // maleta escapa da investida
+    }
+  }
+
+  private activatePower(kind: PowerKind): void {
+    const pw = this.player.powers;
+    if (kind === 'immunity') {
+      pw.immunity = PW.immunity.duration;
+      this.lungeActive = 0;
+      this.lungeWarning = 0;
+    } else if (kind === 'habeas') {
+      pw.habeas = true;
+    } else {
+      pw.saci = PW.saci.duration;
     }
   }
 
@@ -450,6 +551,23 @@ export class Game {
     if (p.stumble === 0) p.stumbleKind = null;
     if (p.speedMul < 1) p.speedMul = Math.min(1, p.speedMul + p.speedRecover * dt);
 
+    // Power-ups
+    const pw = p.powers;
+    if (pw.immunity > 0) {
+      pw.immunity = Math.max(0, pw.immunity - dt);
+      p.speedMul = 1;
+      if (pw.immunity === 0) {
+        p.invuln = Math.max(p.invuln, PW.immunity.graceAfter); // sai do carro com folga
+        this.events.push({ type: 'powerEnd', kind: 'immunity' });
+      }
+    }
+    if (pw.saci > 0) {
+      pw.saci = Math.max(0, pw.saci - dt);
+      if (pw.saci === 0) this.events.push({ type: 'powerEnd', kind: 'saci' });
+    }
+
+    this.updateVorcano(dt);
+
     // Investidas da multidão
     if (this.lungeWarning > 0) {
       this.lungeWarning -= dt;
@@ -460,13 +578,48 @@ export class Game {
       }
     } else if (this.lungeActive > 0) {
       this.lungeActive = Math.max(0, this.lungeActive - dt);
-    } else if (this.time >= this.nextLungeAt) {
+    } else if (this.time >= this.nextLungeAt && pw.immunity === 0) {
       this.lungeWarning = C.lunge.warning;
       this.nextLungeAt =
         this.time + C.lunge.warning + C.lunge.duration + C.lunge.intervalMin +
         this.rng() * (C.lunge.intervalMax - C.lunge.intervalMin);
       this.events.push({ type: 'lungeWarning' });
     }
+  }
+
+  /** Vorcano passa de carro-forte jogando maletas e notas na pista à frente. */
+  private updateVorcano(dt: number): void {
+    const V = BALANCE.vorcano;
+    if (this.vorcanoActive > 0) {
+      this.vorcanoActive = Math.max(0, this.vorcanoActive - dt);
+      this.vorcanoDropT -= dt;
+      if (this.vorcanoDropT <= 0 && this.vorcanoActive > 0) {
+        this.vorcanoDropT = V.duration / V.drops;
+        this.dropFromVorcano();
+      }
+    } else if (this.time >= this.nextVorcanoAt) {
+      this.vorcanoActive = V.duration;
+      this.vorcanoDropT = 0.4;
+      this.nextVorcanoAt = this.time + V.duration + V.intervalMin + this.rng() * (V.intervalMax - V.intervalMin);
+      this.events.push({ type: 'vorcano' });
+    }
+  }
+
+  private dropFromVorcano(): void {
+    const V = BALANCE.vorcano;
+    const z = this.player.z + V.dropAhead;
+    // Só cai em faixa sem obstáculo por perto, para ser sempre alcançável.
+    const free = ([0, 1, 2] as Lane[]).filter(
+      (l) =>
+        !this.obstacles.some(
+          (o) => o.lane === l && !o.knocked && o.kind !== 'ramp' && z + 2 >= o.z && z - 2 <= o.z + o.length,
+        ),
+    );
+    if (!free.length) return;
+    const lane = free[Math.floor(this.rng() * free.length)];
+    const kind = this.rng() < V.caseChance ? 'case' : 'bill';
+    const y = groundAt(this.obstacles, lane, z) + 0.9;
+    this.pickups.push({ id: this.gen.ids.next++, kind, lane, z, y, taken: false });
   }
 
   private updateChase(dt: number): void {
@@ -477,6 +630,7 @@ export class Game {
     this.chase -= (1 - p.speedMul) * C.slowDrainPerSec * dt;
     if (p.boost > 0) this.chase += 3 * dt;
     if (this.lungeActive > 0) this.chase -= C.lunge.drainPerSec * dt;
+    if (p.powers.immunity > 0) this.chase += PW.immunity.chasePerSec * dt;
     this.chase = Math.min(C.max, this.chase);
 
     if (this.chase <= 0) {
@@ -491,8 +645,10 @@ export class Game {
     const p = this.player;
     while (this.gen.nextZ < p.z + BALANCE.track.spawnAhead) {
       const allowCase = this.time - this.lastCaseAt >= BALANCE.pickups.caseMinInterval;
-      const chunk = this.gen.next(allowCase);
+      const allowPower = this.time - this.lastPowerAt >= PW.minInterval;
+      const chunk = this.gen.next(allowCase, allowPower);
       if (chunk.pickups.some((k) => k.kind === 'case')) this.lastCaseAt = this.time;
+      if (chunk.pickups.some((k) => !isMoney(k.kind))) this.lastPowerAt = this.time;
       this.obstacles.push(...chunk.obstacles);
       this.pickups.push(...chunk.pickups);
     }

@@ -23,6 +23,11 @@ const pt = {
   again: 'Correr de novo',
   menu: 'Menu',
   lungeWarning: 'A multidão vai avançar!',
+  immunity: 'Imunidade Parlamentar!',
+  habeas: 'Habeas Corpus!',
+  habeasUsed: 'Habeas Corpus concedido!',
+  saci: 'Redemoinho do Saci!',
+  vorcano: 'Chuva de Maletas!',
   satireTitle: 'Aviso',
   satire:
     'Este jogo é uma obra de sátira e paródia, feita para humor. Os personagens são caricaturas fictícias e não têm vínculo com pessoas reais, partidos ou campanhas. Nenhum lado é apoiado ou atacado.',
@@ -58,6 +63,11 @@ const en: Dict = {
   again: 'Run again',
   menu: 'Menu',
   lungeWarning: 'The crowd is charging!',
+  immunity: 'Parliamentary Immunity!',
+  habeas: 'Habeas Corpus!',
+  habeasUsed: 'Habeas Corpus granted!',
+  saci: "Saci's Whirlwind!",
+  vorcano: 'Briefcase Rain!',
   satireTitle: 'Notice',
   satire:
     'This game is a work of satire and parody, made for humor. The characters are fictional caricatures with no connection to real people, parties or campaigns. No side is endorsed or attacked.',

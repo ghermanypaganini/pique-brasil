@@ -1,3 +1,4 @@
+import { BALANCE } from '../data/balance';
 import type { Game } from '../systems/game';
 import type { Character } from '../systems/types';
 import { t } from './i18n';
@@ -20,7 +21,8 @@ export type Screen = 'menu' | 'hud' | 'pause' | 'continue' | 'over' | 'satire';
 
 export class Ui {
   private root: HTMLElement;
-  private hud: Record<'score' | 'coins' | 'meter' | 'warn', HTMLElement>;
+  private hud: Record<'score' | 'coins' | 'meter' | 'warn' | 'powers' | 'toast', HTMLElement>;
+  private toastTimer = 0;
   private selected: Character = 'lule';
 
   constructor(root: HTMLElement, h: UiHandlers) {
@@ -54,6 +56,12 @@ export class Ui {
         </div>
         <div class="meter" aria-hidden="true"><div class="meter-fill" data-k="meter"></div><span class="meter-crowd">📣</span><span class="meter-runner">🏃</span></div>
         <div class="warn" data-k="warn">${t('lungeWarning')}</div>
+        <div class="powers" data-k="powers">
+          <div class="power" data-p="immunity"><span class="pi">🚘</span><span class="bar"><i></i></span></div>
+          <div class="power" data-p="habeas"><span class="pi">📜</span></div>
+          <div class="power" data-p="saci"><span class="pi">🌪️</span><span class="bar"><i></i></span></div>
+        </div>
+        <div class="toast" data-k="toast"></div>
       </div>
 
       <div class="screen" data-screen="pause">
@@ -93,6 +101,8 @@ export class Ui {
       coins: $('[data-k="coins"]', root),
       meter: $('[data-k="meter"]', root),
       warn: $('[data-k="warn"]', root),
+      powers: $('[data-k="powers"]', root),
+      toast: $('[data-k="toast"]', root),
     };
 
     root.addEventListener('click', (e) => {
@@ -126,6 +136,15 @@ export class Ui {
     this.root.querySelectorAll<HTMLElement>('[data-char]').forEach((b) => b.classList.toggle('selected', b.dataset.char === c));
   }
 
+  /** Troca os círculos de cor pelos retratos 3D (data URLs). */
+  setPortraits(images: Record<Character, string>): void {
+    for (const c of ['lule', 'bolsonero'] as Character[]) {
+      const sw = this.root.querySelector<HTMLElement>(`[data-char="${c}"] .swatch`)!;
+      sw.style.backgroundImage = `url(${images[c]})`;
+      sw.classList.add('portrait');
+    }
+  }
+
   setShake(on: boolean): void {
     $<HTMLInputElement>('[data-act="shake"]', this.root).checked = on;
   }
@@ -151,6 +170,29 @@ export class Ui {
     this.hud.meter.style.width = `${100 - pct}%`;
     this.hud.meter.classList.toggle('danger', pct < 25);
     this.hud.warn.classList.toggle('visible', game.lungeWarning > 0 || game.lungeActive > 0);
+    const pw = game.player.powers;
+    const BAL = BALANCE.powerups;
+    this.setPower('immunity', pw.immunity > 0, pw.immunity / BAL.immunity.duration);
+    this.setPower('habeas', pw.habeas, 1);
+    this.setPower('saci', pw.saci > 0, pw.saci / BAL.saci.duration);
+  }
+
+  private setPower(name: string, on: boolean, fraction: number): void {
+    const el = this.hud.powers.querySelector<HTMLElement>(`[data-p="${name}"]`)!;
+    el.classList.toggle('on', on);
+    const bar = el.querySelector<HTMLElement>('i');
+    if (bar) bar.style.width = `${Math.round(fraction * 100)}%`;
+  }
+
+  /** Aviso rápido no meio da tela (power-up pego, evento). */
+  toast(text: string): void {
+    const el = this.hud.toast;
+    el.textContent = text;
+    el.classList.remove('show');
+    void el.offsetWidth; // reinicia a animação
+    el.classList.add('show');
+    window.clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => el.classList.remove('show'), 1600);
   }
 
   updateContinue(game: Game): void {

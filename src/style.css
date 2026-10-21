@@ -118,6 +118,15 @@ html, body {
   gap: 8px;
 }
 .char .swatch { width: 64px; height: 64px; border-radius: 50%; display: block; }
+.chars .char .swatch.portrait {
+  width: 104px;
+  height: 104px;
+  border-radius: 14px;
+  background-size: cover;
+  background-position: center;
+}
+.chars .char.lule .swatch.portrait { background-color: #ffe0e4; }
+.chars .char.bolsonero .swatch.portrait { background-color: #fff6c2; }
 .char.lule .swatch { background: radial-gradient(circle at 50% 35%, #f2f2f2 0 30%, var(--red) 31%); }
 .char.bolsonero .swatch { background: radial-gradient(circle at 50% 35%, #2b1d12 0 30%, var(--yellow) 31%); }
 .char.lule.selected { border-color: var(--red); }
@@ -193,4 +202,47 @@ html, body {
 
 @media (prefers-reduced-motion: reduce) {
   .meter-fill.danger, .warn { animation: none; }
+}
+
+/* Power-ups ativos */
+.powers { position: absolute; left: 16px; top: 50%; display: flex; flex-direction: column; gap: 8px; }
+.power {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.88);
+  border-radius: 999px;
+  padding: 4px 10px 4px 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+}
+.power.on { display: flex; }
+.power .pi { font-size: 22px; }
+.power .bar { width: 54px; height: 8px; border-radius: 4px; background: rgba(0, 0, 0, 0.15); overflow: hidden; }
+.power .bar i { display: block; height: 100%; background: var(--green); }
+
+/* Aviso rápido */
+.toast {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translate(-50%, 0) scale(0.6);
+  opacity: 0;
+  font-size: clamp(22px, 7vmin, 34px);
+  font-weight: 900;
+  color: var(--yellow);
+  -webkit-text-stroke: 1.5px var(--green);
+  text-shadow: 0 3px 0 var(--green), 0 6px 14px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show { animation: toast 1.6s ease-out forwards; }
+@keyframes toast {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.6); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  20% { transform: translate(-50%, 0) scale(1); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -30px) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast.show { animation: none; opacity: 1; transform: translate(-50%, 0); }
 }

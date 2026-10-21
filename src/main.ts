@@ -1,6 +1,7 @@
 import './style.css';
 import { bindInput } from './core/input';
 import { startLoop } from './core/loop';
+import { renderPortraits } from './render/portrait';
 import { SceneRenderer } from './render/scene';
 import { loadSave, writeSave } from './services/save';
 import { Game } from './systems/game';
@@ -46,6 +47,11 @@ const ui = new Ui(document.getElementById('ui')!, {
   },
 });
 ui.selectCharacter(save.character);
+try {
+  ui.setPortraits(renderPortraits());
+} catch {
+  // Sem WebGL extra disponível: ficam os círculos de cor.
+}
 ui.setShake(save.reduceShake);
 
 function setScreen(s: Screen) {
@@ -121,6 +127,9 @@ startLoop(
     game.update(dt);
     for (const e of game.drainEvents()) {
       if (e.type === 'caught' && game.phase === 'continue') setScreen('continue');
+      else if (e.type === 'pickup' && (e.kind === 'immunity' || e.kind === 'habeas' || e.kind === 'saci')) ui.toast(t(e.kind));
+      else if (e.type === 'shieldUsed') ui.toast(t('habeasUsed'));
+      else if (e.type === 'vorcano') ui.toast(t('vorcano'));
     }
     if (game.phase === 'over') {
       const newBest = finishRun();
@@ -145,6 +154,11 @@ if (import.meta.env.DEV) {
     },
     get screen() {
       return screen;
+    },
+    /** Posição do jogador na tela (0..1, esquerda→direita). */
+    playerScreenX() {
+      const p = game.player;
+      return renderer.screenX(p.x, p.y + 1, p.z);
     },
   };
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BALANCE } from '../data/balance';
+import { BALANCE, laneX } from '../data/balance';
 import { CHUNKS } from '../data/chunks';
-import { buildChunk } from '../world/generator';
+import { buildChunk, makeObstacle } from '../world/generator';
 import { Game } from './game';
 import type { Obstacle, ObstacleKind } from './types';
 
@@ -16,19 +16,9 @@ function emptyGame(): Game {
   return g;
 }
 
+const nextId = { next: 1000 };
 function obstacle(kind: ObstacleKind, lane: 0 | 1 | 2, z: number, extra: Partial<Obstacle> = {}): Obstacle {
-  const OB = BALANCE.obstacles;
-  const dims: Record<ObstacleKind, [number, number]> = {
-    low: [OB.low.length, OB.low.height],
-    high: [OB.high.length, OB.high.top],
-    bus: [OB.bus.length, OB.bus.height],
-    stand: [OB.stand.length, OB.stand.height],
-    ramp: [OB.ramp.length, OB.ramp.height],
-    vehicle: [OB.vehicle.length, OB.vehicle.height],
-    hole: [OB.hole.length, 0],
-  };
-  const [length, height] = dims[kind];
-  return { id: Math.random(), kind, lane, z, prevZ: z, length, height, speed: 0, hit: false, knocked: false, ...extra };
+  return { ...makeObstacle(nextId, kind, lane, z), ...extra };
 }
 
 function run(g: Game, seconds: number) {
@@ -39,7 +29,7 @@ describe('trechos de pista', () => {
   it('todo trecho, espelhado ou não, deixa pelo menos uma faixa passável em qualquer ponto', () => {
     for (const def of CHUNKS) {
       for (const mirror of [false, true]) {
-        const { obstacles } = buildChunk(def, 0, { next: 1 }, { mirror, allowCase: true });
+        const { obstacles } = buildChunk(def, 0, { next: 1 }, { mirror, allowCase: true, power: 'saci' });
         const blocking = obstacles.filter((o) => o.kind === 'bus' || o.kind === 'stand' || o.kind === 'vehicle');
         for (let z = 0; z < def.length; z += 0.25) {
           const blocked = new Set(
@@ -57,7 +47,7 @@ describe('trechos de pista', () => {
 
   it('moedas sobre o telhado ficam na altura do telhado', () => {
     const def = CHUNKS.find((c) => c.name === 'rampa-telhado')!;
-    const { pickups } = buildChunk(def, 0, { next: 1 }, { mirror: false, allowCase: true });
+    const { pickups } = buildChunk(def, 0, { next: 1 }, { mirror: false, allowCase: true, power: null });
     const onCase = pickups.find((k) => k.kind === 'case')!;
     expect(onCase.y).toBeGreaterThan(BALANCE.obstacles.bus.height);
   });
@@ -163,7 +153,7 @@ describe('jogo', () => {
     // O jogador veio da faixa 1 há muito tempo; agora a faixa 1 está bloqueada.
     g.player.prevLane = 1;
     g.player.lane = 2;
-    g.player.x = BALANCE.track.laneWidth;
+    g.player.x = laneX(2);
     g.player.laneT = 1;
     g.obstacles.push(obstacle('bus', 1, -1, { length: 20 }));
     // Ônibus na faixa 2 que já começou atrás do jogador (entra "de lado").
@@ -197,6 +187,67 @@ describe('jogo', () => {
     }
     expect(jumps).toBe(0);
     expect(g.player.grounded).toBe(true);
+  });
+
+  it('Imunidade Parlamentar atravessa tudo sem tropeçar e afasta a multidão', () => {
+    const g = emptyGame();
+    g.chase = 40;
+    g.pickups.push({ id: 1, kind: 'immunity', lane: 1, z: 2, y: 0.9, taken: false });
+    g.obstacles.push(obstacle('bus', 1, 10), obstacle('hole', 1, 30), obstacle('low', 1, 45));
+    const stumbles: string[] = [];
+    for (let t = 0; t < 3; t += DT) {
+      g.update(DT);
+      for (const e of g.drainEvents()) if (e.type === 'stumble') stumbles.push(e.kind);
+    }
+    expect(stumbles).toEqual([]);
+    expect(g.obstacles.every((o) => o.knocked)).toBe(true);
+    expect(g.chase).toBeGreaterThan(90);
+  });
+
+  it('Habeas Corpus anula um tropeço forte e é consumido', () => {
+    const g = emptyGame();
+    g.player.powers.habeas = true;
+    g.obstacles.push(obstacle('bus', 1, 4));
+    run(g, 0.6);
+    expect(g.chase).toBeGreaterThanOrEqual(BALANCE.chase.start);
+    expect(g.player.powers.habeas).toBe(false);
+    expect(g.player.lane).toBe(1);
+  });
+
+  it('Redemoinho do Saci coleta dinheiro das outras faixas', () => {
+    const g = emptyGame();
+    g.player.powers.saci = 10;
+    g.pickups.push(
+      { id: 1, kind: 'coin', lane: 0, z: 5, y: 0.9, taken: false },
+      { id: 2, kind: 'bill', lane: 2, z: 8, y: 3.5, taken: false },
+    );
+    run(g, 1);
+    expect(g.collected).toBe(6);
+  });
+
+  it('o boi muda de faixa e o bêbado anda na direção do jogador', () => {
+    const g = emptyGame();
+    const boi = obstacle('boi', 0, 20);
+    const drunk = obstacle('drunk', 2, 40);
+    g.obstacles.push(boi, drunk);
+    g.player.invuln = 99;
+    const lanes = new Set<number>();
+    for (let t = 0; t < 1.5; t += DT) {
+      g.update(DT);
+      lanes.add(boi.lane);
+    }
+    expect(lanes.size).toBeGreaterThan(1);
+    expect(drunk.z).toBeLessThan(40);
+  });
+
+  it('Vorcano joga maletas/notas alcançáveis na pista', () => {
+    const g = emptyGame();
+    (g as unknown as { nextVorcanoAt: number }).nextVorcanoAt = 0;
+    const before = g.pickups.length;
+    run(g, BALANCE.vorcano.duration);
+    const drops = g.pickups.length - before;
+    expect(drops).toBeGreaterThanOrEqual(BALANCE.vorcano.drops - 1);
+    expect(g.pickups.every((k) => k.kind === 'case' || k.kind === 'bill')).toBe(true);
   });
 
   it('maleta dá boost e soma 50', () => {

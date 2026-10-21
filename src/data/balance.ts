@@ -70,6 +70,27 @@ export const BALANCE = {
     roof: { length: 14 },
     vehicle: { height: 1.6, length: 4.2, speed: 9, activateDistance: 70 },
     hole: { length: 2.4 },
+    boi: { height: 1.3, length: 1.8, lateralSpeed: 3.2, activateDistance: 45 },
+    drunk: { height: 1.0, length: 0.8, speed: 1.2, lateralSpeed: 1.1, retargetMin: 1.2, retargetMax: 2.2, activateDistance: 55 },
+    policeChance: 0.4, // barreira baixa vira blitz policial
+    olindaChance: 0.45, // barreira alta vira boneco de Olinda
+  },
+
+  powerups: {
+    minInterval: 16, // s entre power-ups
+    weights: { saci: 0.4, habeas: 0.35, immunity: 0.25 },
+    immunity: { duration: 5, speedMul: 1.6, chasePerSec: 40, graceAfter: 1 },
+    saci: { duration: 10, reachAhead: 3 }, // ímã: coleta dinheiro das 3 faixas até 3 m à frente
+  },
+
+  vorcano: {
+    firstAfter: 40, // s
+    intervalMin: 55,
+    intervalMax: 85,
+    duration: 4,
+    drops: 7, // itens jogados na pista durante o evento
+    caseChance: 0.3, // o resto são notas
+    dropAhead: 32, // m à frente do jogador
   },
 
   continue: {
@@ -87,4 +108,7 @@ export const BALANCE = {
   },
 } as const;
 
-export const laneX = (lane: number): number => (lane - 1) * BALANCE.track.laneWidth;
+// Com a câmera atrás do jogador olhando para +z, o eixo +x do Three.js aparece à ESQUERDA da tela.
+// Por isso a faixa 0 (esquerda na tela) fica em +x.
+export const laneX = (lane: number): number => (1 - lane) * BALANCE.track.laneWidth;
+export const laneOf = (x: number): number => 1 - Math.round(x / BALANCE.track.laneWidth);

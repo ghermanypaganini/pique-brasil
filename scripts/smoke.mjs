@@ -20,6 +20,20 @@ await page.getByText('Correr!').click();
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${out}/3-correndo.png` });
 
+// Controles não podem estar espelhados: ← leva o personagem para a esquerda DA TELA.
+await page.evaluate(() => (window.__pb.game.player.invuln = 5));
+const x0 = await page.evaluate(() => window.__pb.playerScreenX());
+await page.keyboard.press('ArrowLeft');
+await page.waitForTimeout(400);
+const x1 = await page.evaluate(() => window.__pb.playerScreenX());
+await page.keyboard.press('ArrowRight');
+await page.keyboard.press('ArrowRight');
+await page.waitForTimeout(400);
+const x2 = await page.evaluate(() => window.__pb.playerScreenX());
+if (!(x1 < x0 && x2 > x0)) errors.push(`controles espelhados: centro=${x0.toFixed(2)} esquerda=${x1.toFixed(2)} direita=${x2.toFixed(2)}`);
+else console.log(`controles ok: esquerda=${x1.toFixed(2)} centro=${x0.toFixed(2)} direita=${x2.toFixed(2)}`);
+await page.keyboard.press('ArrowLeft');
+
 // Joga com o teclado por alguns segundos
 const keys = ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
 for (let i = 0; i < 14; i++) {
