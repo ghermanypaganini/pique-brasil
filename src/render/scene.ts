@@ -148,7 +148,10 @@ export class SceneRenderer {
     for (const r of this.crowd) this.removeAndDispose(r.root);
     const side = game.character === 'lule' ? 'verde-amarelo' : 'vermelho';
     this.crowd = Array.from({ length: n }, (_, i) => makeChaser(side, i));
-    for (const r of this.crowd) this.world.add(r.root);
+    for (const r of this.crowd) {
+      r.root.scale.multiplyScalar(BALANCE.crowd.scale);
+      this.world.add(r.root);
+    }
     this.crowdCloths = this.crowd.map((r) => r.root.getObjectByName('cloth'));
     this.crowdCount = n;
   }
@@ -339,9 +342,10 @@ export class SceneRenderer {
     const gap = BALANCE.crowd.minGap + game.chase * BALANCE.crowd.metersPerChase;
     const lunge = game.lungeActive > 0 ? Math.sin(this.time * 10) * 0.4 : 0;
     this.crowd.forEach((c, i) => {
+      // Agrupados atrás do jogador (a tela em retrato é estreita) e seguindo a faixa dele.
       const spread = this.crowd.length === 4 ? [-1.5, -0.5, 0.5, 1.5][i] : [-2, -1, 0, 1, 2][i];
       const jitter = Math.sin(this.time * 2 + i * 1.7);
-      c.root.position.set(spread * LW * 0.7 + jitter * 0.3, 0, p.z - gap - (i % 2) * 0.9 + lunge);
+      c.root.position.set(p.x * 0.6 + spread * 0.8 + jitter * 0.2, 0, p.z - gap - (i % 2) * 0.7 + lunge);
       animateRun(c, this.runPhase * 1.05 + i, running ? 1 : 0.2);
       // Braços esticados quando estão perto
       if (game.chase < 20 && i % 2 === 1) {
@@ -396,7 +400,8 @@ export class SceneRenderer {
     this.speedLines.update(p.z, lines);
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 4);
     this.camera.updateProjectionMatrix();
-    const target = this.camTarget.set(p.x * 0.7, 3.6 + p.y * 0.7, p.z - 6.0 - speedT * 1.2);
+    // Câmera mais alta e mais afastada: mostra o jogador e a multidão logo atrás dele.
+    const target = this.camTarget.set(p.x * 0.7, 4.6 + p.y * 0.6, p.z - 9.5 - speedT * 1.2);
     this.camPos.lerp(target, Math.min(1, dt * 8));
     this.camPos.z = target.z; // nunca atrasa no eixo da corrida
     this.camera.position.copy(this.camPos);
@@ -406,6 +411,6 @@ export class SceneRenderer {
       this.camera.position.x += (Math.random() - 0.5) * shake;
       this.camera.position.y += (Math.random() - 0.5) * shake;
     }
-    this.camera.lookAt(p.x * 0.7, 1.4 + p.y * 0.6, p.z + 8);
+    this.camera.lookAt(p.x * 0.7, 1.2 + p.y * 0.6, p.z + 8);
   }
 }

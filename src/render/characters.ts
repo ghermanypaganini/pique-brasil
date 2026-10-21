@@ -199,6 +199,7 @@ export function makeChaser(side: 'verde-amarelo' | 'vermelho', index: number): R
     );
     cloth.position.set(0.52, 1.36, 0);
     cloth.name = 'cloth';
+    cloth.userData.noOutline = true; // contorno por casco não funciona em planos (mancha preta)
     flag.add(pole, cloth);
     const emblem =
       side === 'verde-amarelo'
@@ -208,9 +209,11 @@ export function makeChaser(side: 'verde-amarelo' | 'vermelho', index: number): R
       emblem.rotation.z = Math.PI / 4;
       const globe = new THREE.Mesh(new THREE.CircleGeometry(0.12, 12), toon(0x1e3a8a, { side: THREE.DoubleSide }));
       globe.position.z = 0.004;
+      globe.userData.noOutline = true;
       emblem.add(globe);
     }
     emblem.position.z = 0.005;
+    emblem.userData.noOutline = true;
     cloth.add(emblem);
     flag.position.y = -0.6;
     rig.armR.add(flag);

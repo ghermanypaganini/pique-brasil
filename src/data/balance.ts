@@ -105,8 +105,11 @@ export const BALANCE = {
 
   crowd: {
     narrowScreenPx: 500, // abaixo disso: 4 perseguidores; acima: 5
-    minGap: 1.6, // metros atrás do jogador com distância 0
-    metersPerChase: 0.2, // com a câmera ~6,5 m atrás, a multidão aparece abaixo de ~25
+    // A câmera fica ~9,5 m atrás do jogador; a multidão vive no espaço entre os dois e está
+    // sempre na parte de baixo da tela: ~4,3 m atrás com distância 100, ~1,8 m (encostando) com 0.
+    minGap: 1.8, // metros atrás do jogador com distância 0
+    metersPerChase: 0.025,
+    scale: 0.85, // um pouco menores que o jogador: perto da câmera a perspectiva já os aumenta
   },
 } as const;
 
