@@ -1,4 +1,5 @@
 import { BALANCE } from '../data/balance';
+import { FEATURES } from '../services/config';
 import type { Board, BoardData, SubmitOutcome } from '../services/ranking';
 import type { Language, SaveData } from '../services/save';
 import { checkName, NAME_MAX } from '../shared/names';
@@ -9,7 +10,7 @@ import { language, t, type TextKey } from './i18n';
 const $ = <T extends HTMLElement>(sel: string, root: ParentNode = document) => root.querySelector(sel) as T;
 
 export type Volume = 'musicVolume' | 'sfxVolume' | 'crowdVolume';
-export type Flag = 'reduceShake' | 'reduceFlashes' | 'touchButtons';
+export type Flag = 'reduceShake' | 'reduceFlashes' | 'touchButtons' | 'analytics';
 
 export interface UiHandlers {
   start(character: Character): void;
@@ -188,6 +189,7 @@ export class Ui {
           <label class="toggle dark"><input type="checkbox" data-flag="reduceShake" /> ${t('reduceShake')}</label>
           <label class="toggle dark"><input type="checkbox" data-flag="reduceFlashes" /> ${t('reduceFlashes')}</label>
           <label class="toggle dark"><input type="checkbox" data-flag="touchButtons" /> ${t('touchButtons')}</label>
+          ${FEATURES.analytics ? `<label class="toggle dark"><input type="checkbox" data-flag="analytics" /> ${t('analytics')}</label><p class="small-note">${t('analyticsNote')}</p>` : ''}
           <div class="field">${t('nickname')}: <b data-k="nick-current"></b> <button class="btn tiny" data-act="nick-change">${t('change')}</button></div>
           <details class="about"><summary>${t('about')}</summary><p>${t('satire')}</p></details>
           <button class="btn primary" data-act="back">${t('close')}</button>
@@ -277,8 +279,9 @@ export class Ui {
     for (const v of ['musicVolume', 'sfxVolume', 'crowdVolume'] as Volume[]) {
       $<HTMLInputElement>(`[data-vol="${v}"]`, this.root).value = String(Math.round(save[v] * 100));
     }
-    for (const f of ['reduceShake', 'reduceFlashes', 'touchButtons'] as Flag[]) {
-      $<HTMLInputElement>(`[data-flag="${f}"]`, this.root).checked = save[f];
+    for (const f of ['reduceShake', 'reduceFlashes', 'touchButtons', 'analytics'] as Flag[]) {
+      const box = this.root.querySelector<HTMLInputElement>(`[data-flag="${f}"]`);
+      if (box) box.checked = save[f];
     }
     $('[data-k="nick-current"]', this.root).textContent = save.nickname ? `${save.nickname}#${save.tag}` : t('none');
     this.hud.touch.classList.toggle('on', save.touchButtons);

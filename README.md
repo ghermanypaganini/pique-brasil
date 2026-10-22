@@ -46,6 +46,29 @@ npm run build:crazygames   # pique-brasil-crazygames.zip
 
 Esses builds carregam o SDK do portal e **desligam o patrocínio** (os portais proíbem anúncios de terceiros). Envie pelo painel de desenvolvedor de cada portal; ambos fazem avaliação antes de publicar. Confira na documentação atual de cada SDK se as chamadas em `src/services/portal.ts` continuam as mesmas.
 
+## Métricas e erros (PostHog + Sentry)
+
+Opcional: sem as chaves o jogo funciona igual, só sem métricas. Ligado só no site e no itch.io e nunca em `npm run dev`. Nos builds da Poki e da CrazyGames o código dos SDKs e as chaves nem entram no zip. No PWA, os SDKs não são baixados antecipadamente: só quando as métricas estão ligadas.
+
+**Privacidade (LGPD):** eventos anônimos, sem nome nem apelido, sem cookies. O identificador da visita fica só na aba (`sessionStorage`, some ao fechar; sobrevive à recarga ao trocar o idioma). O único dado guardado no aparelho é o resumo de uma partida interrompida com a aba em segundo plano, enviado na abertura seguinte e apagado. Não há gravação de tela nem captura automática de cliques. O jogador pode desligar em **Configurações → Enviar estatísticas anônimas**. Os erros começam a ser capturados logo na abertura (antes do 3D), para pegar aparelhos sem WebGL.
+
+1. **PostHog** (plano gratuito, 1 milhão de eventos/mês): crie o projeto e copie a *Project API key* (`phc_...`). Em **Project settings**, ligue **Discard client IP data**.
+2. **Sentry** (plano gratuito): crie um projeto *Browser JavaScript* e copie o **DSN**. Em **Project settings → Security & Privacy**, ligue **Prevent storing of IP addresses**.
+3. Na Vercel, **Settings → Environment Variables** (Production): `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST` (`https://us.i.posthog.com` ou `https://eu.i.posthog.com`) e `VITE_SENTRY_DSN`. São chaves públicas, feitas para ficar no navegador. **Redeploy**.
+4. Para o zip do itch.io, copie `.env.example` para `.env.local`, preencha e rode `npm run build:itch`.
+
+**Eventos enviados:**
+
+| Evento | Quando | Propriedades principais |
+|---|---|---|
+| `app_open` | jogo pronto | `boot_ms` (tempo até poder jogar, incluindo SDK do portal e patrocinadores, sem o mínimo de 4 s da tela de patrocínio), `language`, `language_switch` (recarga por troca de idioma), `returning`, `standalone` (PWA instalado) |
+| `run_start` | início da partida | `character`, `run_index` (nº da partida na visita, mantido ao trocar o idioma), `best` |
+| `run_end` | fim da partida | `ended` (`caught`, `quit`, `closed` = fechou a página, `abandoned` = o sistema fechou a aba em segundo plano), `cause` (obstáculo do último tropeço, `lunge` = investida, ou `pressure`), `duration_s`, `distance`, `score`, `money`, `continues`, `stumbles_light/strong`, `lunges`, `vorcanos`, `marteladas`, `biome`, `power_*`, `fps_avg`, `fps_low` (5% piores quadros) |
+
+Todos levam `target` e `release` (commit). O PostHog acrescenta sistema, navegador e tipo de aparelho.
+
+**Painéis sugeridos no PostHog** (metas da seção 2.2 do PRD): média de `duration_s` em `run_end` com `ended = caught` (meta 60–120 s) · `cause` em gráfico de barras (onde os jogadores são pegos) · máximo de `run_index` por visita (meta ≥ 3) · `fps_avg` e `fps_low` por tipo de aparelho · média de `boot_ms`.
+
 ## Patrocinadores
 
 Veja [`public/sponsors/LEIA-ME.md`](public/sponsors/LEIA-ME.md): imagem na pasta + entrada no `sponsors.json` + commit. O e-mail do card "ANUNCIE AQUI" fica no campo `contact` do mesmo arquivo.

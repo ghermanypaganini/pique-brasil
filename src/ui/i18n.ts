@@ -23,10 +23,17 @@ export function t(key: TextKey, vars: Record<string, string | number> = {}): str
   return dict[key].replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? `{${k}}`));
 }
 
+export const LANGUAGE_SWITCH_KEY = 'pique-brasil:language-switch';
+
 /** Troca o idioma e recarrega (a interface é montada uma vez com os textos). */
 export function setLanguage(lang: Language): void {
   const save = loadSave();
   save.language = lang;
   writeSave(save);
+  try {
+    sessionStorage.setItem(LANGUAGE_SWITCH_KEY, '1'); // a recarga não é uma visita nova (métricas)
+  } catch {
+    /* sem armazenamento */
+  }
   location.reload();
 }

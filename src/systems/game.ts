@@ -58,6 +58,17 @@ export interface PlayerState {
   };
 }
 
+/** Números da partida para as métricas (PRD 11): onde e como os jogadores são pegos. */
+export interface RunStats {
+  stumblesLight: number;
+  stumblesStrong: number;
+  lastStumble: ObstacleKind | null; // obstáculo do último tropeço
+  powers: Record<PowerKind, number>;
+  lunges: number;
+  vorcanos: number;
+  marteladas: number;
+}
+
 export interface GameOptions {
   character: Character;
   bank: number; // moedas já guardadas (para pagar o "Continuar")
@@ -73,6 +84,15 @@ export class Game {
   obstacles: Obstacle[] = [];
   pickups: Pickup[] = [];
   events: GameEvent[] = [];
+  readonly stats: RunStats = {
+    stumblesLight: 0,
+    stumblesStrong: 0,
+    lastStumble: null,
+    powers: { immunity: 0, habeas: 0, saci: 0, cafe: 0, sandal: 0, pix: 0 },
+    lunges: 0,
+    vorcanos: 0,
+    marteladas: 0,
+  };
 
   bank: number;
   coins = 0; // saldo ganho nesta partida (pode ser gasto no "Continuar")
@@ -223,6 +243,13 @@ export class Game {
     this.phase = 'running';
     this.events.push({ type: 'continued' });
     return true;
+  }
+
+  /** O que levou à captura: um tropeço recente, a investida da multidão ou a pressão acumulada. */
+  get catchCause(): string {
+    const last = this.stats.lastStumble;
+    if (last && this.time - this.lastStumbleAt < C.causeWindow) return last;
+    return this.lungeActive > 0 ? 'lunge' : 'pressure';
   }
 
   giveUp(): void {
@@ -506,6 +533,9 @@ export class Game {
     p.stumble = kind === 'strong' ? 0.6 : 0.35;
     p.stumbleKind = kind;
     this.lastStumbleAt = this.time;
+    if (kind === 'strong') this.stats.stumblesStrong++;
+    else this.stats.stumblesLight++;
+    this.stats.lastStumble = obstacle;
     this.events.push({ type: 'stumble', kind, obstacle });
   }
 
@@ -575,6 +605,7 @@ export class Game {
 
   private activatePower(kind: PowerKind): void {
     const pw = this.player.powers;
+    this.stats.powers[kind]++;
     if (kind === 'immunity') {
       pw.immunity = PW.immunity.duration;
       this.lungeActive = 0;
@@ -624,6 +655,7 @@ export class Game {
       if (this.lungeWarning <= 0) {
         this.lungeWarning = 0;
         this.lungeActive = C.lunge.duration;
+        this.stats.lunges++;
         this.events.push({ type: 'lunge' });
       }
     } else if (this.lungeActive > 0) {
@@ -671,6 +703,7 @@ export class Game {
 
     this.obstacles.push(makeObstacle(this.gen.ids, 'tape', lane, z0));
     this.martelada = { lane, z: z0 };
+    this.stats.marteladas++;
     this.events.push({ type: 'martelada', lane });
   }
 
@@ -688,6 +721,7 @@ export class Game {
       this.vorcanoActive = V.duration;
       this.vorcanoDropT = 0.4;
       this.nextVorcanoAt = this.time + V.duration + V.intervalMin + this.rng() * (V.intervalMax - V.intervalMin);
+      this.stats.vorcanos++;
       this.events.push({ type: 'vorcano' });
     }
   }

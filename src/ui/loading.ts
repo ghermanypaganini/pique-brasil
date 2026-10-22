@@ -48,10 +48,20 @@ function advertiseCard(contact: string | null): HTMLElement {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, Math.max(0, ms)));
 
-/** Mostra a tela de carregamento até o jogo estar pronto E o tempo mínimo ter passado. */
-export async function runLoadingScreen(lang: Language, ready: Promise<void>): Promise<void> {
+/**
+ * Mostra a tela de carregamento até o jogo estar pronto E o tempo mínimo ter passado.
+ * Retorna em quantos ms o jogo ficou pronto para jogar, sem contar o mínimo (métricas).
+ */
+export async function runLoadingScreen(lang: Language, ready: Promise<void>): Promise<number> {
+  let readyAt = 0;
+  const gameReady = ready.then(() => {
+    readyAt = performance.now();
+  });
   const el = document.getElementById('loading');
-  if (!el) return ready;
+  if (!el) {
+    await gameReady;
+    return Math.round(readyAt);
+  }
   const spot = el.querySelector<HTMLElement>('.ld-spot')!;
   el.querySelector<HTMLElement>('.ld-text')!.textContent = t('loading');
   el.querySelector<HTMLElement>('.ld-logo')!.textContent = t('title');
@@ -59,6 +69,7 @@ export async function runLoadingScreen(lang: Language, ready: Promise<void>): Pr
   let rotate: number | undefined;
   if (FEATURES.sponsors) {
     const cfg = await loadSponsorConfig();
+    const sponsorsAt = performance.now();
     const chosen = pickSponsors(activeSponsors(cfg, lang), 2);
     const cards = chosen.length ? chosen.map(sponsorCard) : [advertiseCard(validContact(cfg.contact))];
     const shown = new Set<string>();
@@ -76,12 +87,14 @@ export async function runLoadingScreen(lang: Language, ready: Promise<void>): Pr
       rotate = window.setInterval(() => show((i = (i + 1) % cards.length)), ROTATE_MS);
     }
     // O mínimo conta desde a abertura da página (performance.now() começa na navegação).
-    await Promise.all([ready, wait(MIN_LOADING_MS - performance.now())]);
+    await Promise.all([gameReady, wait(MIN_LOADING_MS - performance.now())]);
+    readyAt = Math.max(readyAt, sponsorsAt);
   } else {
-    await ready;
+    await gameReady;
   }
 
   window.clearInterval(rotate);
   el.classList.add('done');
   setTimeout(() => el.remove(), 400);
+  return Math.round(readyAt);
 }

@@ -45,6 +45,7 @@ export const BALANCE = {
     regenPerSec: 1.5, // ganho de distância correndo sem tropeçar
     regenDelay: 3, // s após um tropeço antes de voltar a ganhar distância
     slowDrainPerSec: 12, // perda extra proporcional à velocidade perdida
+    causeWindow: 4, // s: tropeço até esse tempo antes da captura conta como a causa (métricas)
     lunge: {
       firstAfter: 25, // s de partida antes da primeira investida
       intervalMin: 25,

@@ -45,13 +45,28 @@ function localApi(): Plugin {
   };
 }
 
+// Versão do build para as métricas e os relatórios de erro: o commit na Vercel, senão a do package.json.
+const release = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? process.env.npm_package_version ?? 'dev';
+
 export default defineConfig({
   // Caminhos relativos: o mesmo build funciona na Vercel e dentro do zip do itch.io/portais.
   base: './',
+  define: {
+    'import.meta.env.VITE_RELEASE': JSON.stringify(release),
+  },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1000,
     outDir: target === 'web' ? 'dist' : `dist-${target}`,
+    rolldownOptions: {
+      output: {
+        // SDKs de métricas com prefixo próprio, para o PWA não baixá-los antecipadamente (ver globIgnores).
+        chunkFileNames: (chunk) =>
+          chunk.moduleIds.some((id) => /posthog-js|@sentry|sentry-lite/.test(id))
+            ? 'assets/telemetry-[name]-[hash].js'
+            : 'assets/[name]-[hash].js',
+      },
+    },
   },
   plugins: [
     localApi(),
@@ -80,6 +95,8 @@ export default defineConfig({
             },
             workbox: {
               globPatterns: ['**/*.{js,css,html,png,svg,webp,json}'],
+              // Métricas só são baixadas por quem as usa (carregadas sob demanda, quando ligadas).
+              globIgnores: ['**/telemetry-*.js'],
               // Patrocinadores e API sempre da rede (o jogo funciona offline sem eles).
               navigateFallbackDenylist: [/^\/api\//],
               runtimeCaching: [

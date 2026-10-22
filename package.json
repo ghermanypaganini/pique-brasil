@@ -17,7 +17,9 @@
     "build:crazygames": "tsc --noEmit && node scripts/build-target.mjs crazygames"
   },
   "dependencies": {
+    "@sentry/browser": "^11.8.0",
     "@upstash/redis": "^1.39.0",
+    "posthog-js": "^1.438.13",
     "three": "^0.186.1"
   },
   "devDependencies": {

@@ -6,12 +6,14 @@ import { SceneRenderer } from './render/scene';
 import { audio, type Sfx } from './services/audio';
 import { initPortal, portalGameplay, portalLoadingFinished } from './services/portal';
 import { fetchBoard, flushQueue, requestRunToken, submitRun, type RunResult } from './services/ranking';
-import { loadSave, writeSave } from './services/save';
+import { loadSave, readJson, writeJson, writeSave } from './services/save';
+import { FpsMeter, setTelemetryEnabled, startAnalytics, startErrorReporting, track, type Props } from './services/telemetry';
 import { cleanName, makeTag, memberOf } from './shared/names';
 import { Game } from './systems/game';
+import { biomeAt } from './render/scenery';
 import type { Character, GameEvent } from './systems/types';
 import { isMoney } from './systems/types';
-import { language, setLanguage, t } from './ui/i18n';
+import { LANGUAGE_SWITCH_KEY, language, setLanguage, t } from './ui/i18n';
 import { runLoadingScreen } from './ui/loading';
 import { Ui, type Screen } from './ui/ui';
 
@@ -21,6 +23,8 @@ document.getElementById('rotate')!.textContent = t('rotate');
 document.title = t('title');
 
 const save = loadSave();
+// Antes de montar o 3D: um aparelho sem WebGL quebra aqui, e esse erro precisa ser reportado.
+startErrorReporting(save.analytics);
 const renderer = new SceneRenderer(canvas);
 const portalReady = initPortal();
 
@@ -31,6 +35,22 @@ let backTo: Screen = 'menu'; // tela para onde ranking/configurações/apelido v
 // Ranking: token assinado no início da partida e resultado aguardando envio.
 let runToken: Promise<string | null> = Promise.resolve(null);
 let pendingResult: { token: Promise<string | null>; result: RunResult } | null = null;
+// Métricas: partidas nesta visita (sobrevive à recarga ao trocar o idioma) e FPS durante a corrida.
+const RUN_INDEX_KEY = 'pique-brasil:run-index';
+// Resumo da partida em andamento, guardado quando a aba sai de vista: se o sistema fechar a aba,
+// ele é enviado como "abandonada" na próxima abertura.
+const PENDING_RUN_KEY = 'pique-brasil:pending-run';
+let runIndex = Number(session(RUN_INDEX_KEY)) || 0;
+const fps = new FpsMeter();
+
+function session(key: string, value?: string): string | null {
+  try {
+    if (value !== undefined) sessionStorage.setItem(key, value);
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
 // No menu, uma partida "de vitrine" parada serve de fundo.
 let game = new Game({ character: save.character, bank: save.bank });
 renderer.setCharacter(game);
@@ -84,6 +104,7 @@ const ui = new Ui(document.getElementById('ui')!, {
     save[flag] = on;
     writeSave(save);
     ui.applySettings(save);
+    if (flag === 'analytics') setTelemetryEnabled(on);
   },
   touch: (a) => {
     if (screen === 'hud') game.input(a);
@@ -119,6 +140,10 @@ function startRun(character: Character) {
   game = new Game({ character, bank: save.bank });
   finished = false;
   pendingResult = null;
+  runIndex++;
+  session(RUN_INDEX_KEY, String(runIndex));
+  fps.reset();
+  track('run_start', { character, run_index: runIndex, best: save.best });
   runToken = requestRunToken(character);
   void flushQueue();
   renderer.setCharacter(game);
@@ -141,20 +166,53 @@ function resume() {
 }
 
 function toMenu() {
-  if (game.time > 0) finishRun(); // sair no meio da partida guarda o dinheiro
+  // Sair no meio da partida guarda o dinheiro; sair na contagem do Continuar é ter sido pego.
+  if (game.time > 0) finishRun(game.phase === 'continue' ? 'caught' : 'quit');
   game = new Game({ character: save.character, bank: save.bank });
   renderer.setCharacter(game);
   setScreen('menu');
 }
 
-function finishRun(): boolean {
+function finishRun(ended: RunEnd): boolean {
   if (finished) return false;
   finished = true;
+  track('run_end', runEndProps(ended));
+  writeJson(PENDING_RUN_KEY, null);
   save.bank = game.bank + game.coins;
   const newBest = game.score > save.best;
   if (newBest) save.best = game.score;
   writeSave(save);
   return newBest;
+}
+
+type RunEnd = 'caught' | 'quit' | 'closed' | 'abandoned';
+
+/** Partida em andamento que ainda não foi registrada (não conta o menu nem o fim de jogo). */
+const runInProgress = () => game.time > 0 && !finished && (screen === 'hud' || screen === 'pause' || screen === 'continue');
+
+/** Métricas da partida (PRD 11): duração, distância, onde foi pego, power-ups e desempenho. */
+function runEndProps(ended: RunEnd): Props {
+  const st = game.stats;
+  return {
+    ended,
+    cause: ended === 'caught' ? game.catchCause : null,
+    character: game.character,
+    run_index: runIndex,
+    duration_s: Math.round(game.time),
+    distance: Math.floor(game.distance),
+    score: game.score,
+    money: game.collected,
+    new_best: game.score > save.best,
+    continues: game.continuesUsed,
+    stumbles_light: st.stumblesLight,
+    stumbles_strong: st.stumblesStrong,
+    lunges: st.lunges,
+    vorcanos: st.vorcanos,
+    marteladas: st.marteladas,
+    biome: biomeAt(game.distance),
+    ...Object.fromEntries(Object.entries(st.powers).map(([k, n]) => [`power_${k}`, n])),
+    ...fps.summary(),
+  };
 }
 
 /** Envia ao ranking o resultado da última partida (quando já há apelido). */
@@ -169,7 +227,7 @@ async function submitPending(): Promise<void> {
 }
 
 function gameOver() {
-  const newBest = finishRun();
+  const newBest = finishRun('caught');
   ui.showResults(game, newBest);
   pendingResult = { token: runToken, result: { score: game.score, distance: game.distance, coins: game.collected } };
   setScreen('over');
@@ -229,9 +287,17 @@ window.addEventListener('keydown', unlockAudio, { once: true });
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    if (runInProgress() && save.analytics) writeJson(PENDING_RUN_KEY, runEndProps('abandoned'));
     pause();
     audio.suspend();
   } else if (screen !== 'pause') audio.resume();
+});
+
+// Fechou a aba ou saiu da página no meio da partida: envia já (o beacon sobrevive ao fechamento).
+window.addEventListener('pagehide', () => {
+  if (!runInProgress()) return;
+  track('run_end', runEndProps('closed'), true);
+  writeJson(PENDING_RUN_KEY, null);
 });
 
 function resize() {
@@ -255,6 +321,7 @@ startLoop(
       reduceFlashes: save.reduceFlashes,
       active: screen === 'hud',
     });
+    if (screen === 'hud') fps.add(frameDt);
     if (screen === 'hud' || screen === 'pause') ui.updateHud(game);
     if (screen === 'continue') ui.updateContinue(game);
     // A multidão fica mais alta (e a música mais intensa) quanto mais perto ela estiver.
@@ -266,7 +333,26 @@ setScreen(save.satireAccepted ? 'menu' : 'satire');
 void flushQueue();
 
 // Tela de carregamento (patrocínio, mínimo 4 s) por cima do menu até o jogo estar pronto.
-void runLoadingScreen(language, portalReady).then(() => portalLoadingFinished());
+void runLoadingScreen(language, portalReady).then((readyMs) => {
+  portalLoadingFinished();
+  startAnalytics(save.analytics);
+  const languageSwitch = session(LANGUAGE_SWITCH_KEY) === '1';
+  if (languageSwitch) session(LANGUAGE_SWITCH_KEY, '0');
+  // Partida da visita anterior que o sistema fechou com a aba em segundo plano.
+  const abandoned = readJson<Props | null>(PENDING_RUN_KEY, null);
+  if (abandoned) {
+    track('run_end', abandoned);
+    writeJson(PENDING_RUN_KEY, null);
+  }
+  track('app_open', {
+    boot_ms: readyMs, // tempo até poder jogar, sem o mínimo de 4 s da tela de patrocínio
+    language_switch: languageSwitch,
+    language,
+    returning: save.best > 0,
+    standalone: window.matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches,
+    pixel_ratio: Math.round(window.devicePixelRatio * 100) / 100,
+  });
+});
 
 // Acesso para testes automatizados (só no modo de desenvolvimento).
 if (import.meta.env.DEV) {

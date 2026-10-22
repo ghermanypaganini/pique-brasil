@@ -18,4 +18,6 @@ export const FEATURES = {
   ranking: true,
   pwa: TARGET === 'web',
   portalSdk: TARGET === 'poki' || TARGET === 'crazygames',
+  // Métricas próprias só fora dos portais (eles já medem e têm regras sobre rastreamento de terceiros).
+  analytics: TARGET === 'web' || TARGET === 'itch',
 };

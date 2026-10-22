@@ -5,3 +5,6 @@ dist
 smoke-output
 dist-*
 *.zip
+.env
+.env.*
+!.env.example

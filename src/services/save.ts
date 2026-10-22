@@ -20,6 +20,7 @@ export interface SaveData {
   reduceShake: boolean;
   reduceFlashes: boolean;
   touchButtons: boolean;
+  analytics: boolean; // estatísticas anônimas (PRD 11); dá para desligar em Configurações
   musicVolume: number; // 0..1
   sfxVolume: number;
   crowdVolume: number;
@@ -38,6 +39,7 @@ const DEFAULTS: SaveData = {
   reduceShake: false,
   reduceFlashes: false,
   touchButtons: false,
+  analytics: true,
   musicVolume: 0.6,
   sfxVolume: 0.8,
   crowdVolume: 0.7,

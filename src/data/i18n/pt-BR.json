@@ -80,6 +80,8 @@
   "reduceShake": "Reduzir tremor de tela",
   "reduceFlashes": "Reduzir piscadas e flashes",
   "touchButtons": "Botões na tela em vez de deslizar",
+  "analytics": "Enviar estatísticas anônimas",
+  "analyticsNote": "Distância, tropeços e desempenho, sem nome, sem cookies e sem dados pessoais. Ajuda a calibrar a dificuldade.",
   "nickname": "Apelido",
   "change": "Trocar",
   "none": "nenhum",

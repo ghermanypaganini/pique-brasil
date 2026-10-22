@@ -356,6 +356,34 @@ describe('jogo', () => {
     }
   });
 
+  it('estatísticas da partida registram tropeços, power-ups e a causa da captura', () => {
+    const g = emptyGame();
+    g.chase = 20;
+    g.pickups.push({ id: 1, kind: 'cafe', lane: 1, z: 3, y: 0.9, taken: false });
+    g.obstacles.push(obstacle('low', 1, 12), obstacle('bus', 1, 30));
+    run(g, 4);
+    expect(g.stats.powers.cafe).toBe(1);
+    expect(g.stats.stumblesLight).toBe(1);
+    expect(g.stats.stumblesStrong).toBe(1);
+    expect(g.phase).toBe('continue');
+    expect(g.catchCause).toBe('bus');
+
+    // Sem tropeço recente, quem pegou foi a pressão da multidão.
+    const h = emptyGame();
+    h.chase = 0.05;
+    h.update(DT);
+    h.update(DT);
+    expect(h.catchCause).toBe('pressure');
+
+    // Pego durante a investida, sem tropeço recente: a causa é a investida.
+    const k = emptyGame();
+    k.chase = 0.05;
+    k.lungeActive = 2;
+    k.update(DT);
+    expect(k.phase).toBe('continue');
+    expect(k.catchCause).toBe('lunge');
+  });
+
   it('correr na fita empurra para uma faixa livre com tropeço leve; Habeas Corpus derruba a fita', () => {
     const g = emptyGame();
     g.startMartelada(1);

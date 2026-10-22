@@ -629,6 +629,14 @@ Tudo da seção 15.1, incluindo os itens de corte de emergência (Vorcano, Cuca 
 - Sorteio dos power-ups: Saci 22%, Habeas 22%, Imunidade 16%, Cafezinho 14%, Sandália 13%, Emenda Pix 13% (`balance.ts`).
 - Ranking: o limite de dinheiro por metro dobrou por causa da Emenda Pix; o de velocidade continua válido porque Cafezinho e Imunidade não se somam (há teste garantindo).
 
-### 17.2 Próximos blocos
-Métricas (PostHog/Sentry) · Meta-jogo (loja, skins, upgrades, missões, desafio diário) · Patrocínio extra (outdoors, power-up patrocinado) · Acessibilidade restante · Arte 3D por IA.
+### 17.2 Bloco Métricas ✅ (falta só criar as contas e cadastrar as chaves)
+- **PostHog** para eventos (`app_open`, `run_start`, `run_end`) e **Sentry** para erros; detalhes, eventos e painéis sugeridos no `README.md` ("Métricas e erros").
+- Cobre a seção 11: início/fim de partida, personagem, distância, dinheiro, causa da captura (obstáculo do último tropeço), continuações, power-ups, investidas, Vorcano, Marteladas, tempo de carregamento e FPS (médio e dos 5% piores quadros). Permite acompanhar as metas da seção 2.2.
+- **LGPD:** anônimo, sem cookies, identificador só na aba (some ao fechar), sem gravação de tela nem cliques automáticos, IP descartado (configurar nos dois serviços). Aviso e opção de desligar em Configurações ("Enviar estatísticas anônimas", ligado por padrão).
+- Partidas que terminam fora do fluxo normal também contam: fechar a página (`closed`, enviado na hora) e aba fechada pelo sistema em segundo plano (`abandoned`, enviado na abertura seguinte).
+- Só no site e no itch.io; nos portais (Poki/CrazyGames têm métricas próprias e regras contra rastreamento de terceiros) o código nem entra no pacote. Desligado em desenvolvimento.
+- Carregado depois do jogo abrir (não afeta o carregamento): +52 KB (PostHog) e +31 KB (Sentry) compactados, usando as versões mínimas dos dois SDKs.
+
+### 17.3 Próximos blocos
+Meta-jogo (loja, skins, upgrades, missões, desafio diário) · Patrocínio extra (outdoors, power-up patrocinado) · Acessibilidade restante · Arte 3D por IA.
 

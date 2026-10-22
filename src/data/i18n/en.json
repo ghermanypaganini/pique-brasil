@@ -80,6 +80,8 @@
   "reduceShake": "Reduce screen shake",
   "reduceFlashes": "Reduce blinking and flashes",
   "touchButtons": "On-screen buttons instead of swipes",
+  "analytics": "Send anonymous statistics",
+  "analyticsNote": "Distance, stumbles and performance, with no name, no cookies and no personal data. Helps tune the difficulty.",
   "nickname": "Nickname",
   "change": "Change",
   "none": "none",
