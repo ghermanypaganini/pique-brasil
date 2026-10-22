@@ -67,6 +67,8 @@ export function makeObstacle(
       return { ...base, length: OB.boi.length, height: OB.boi.height, dir: laneX(lane) > 0 ? -1 : 1 };
     case 'drunk':
       return { ...base, length: OB.drunk.length, height: OB.drunk.height, speed: OB.drunk.speed, dir: lane };
+    case 'tape':
+      return { ...base, length: BALANCE.careca.tapeLength, height: BALANCE.careca.tapeHeight };
   }
 }
 
@@ -164,11 +166,13 @@ export function buildChunk(def: ChunkDef, startZ: number, ids: Ids, opts: BuildO
 }
 
 export function pickPower(rng: Rng): PowerKind {
-  const w = BALANCE.powerups.weights;
-  const r = rng() * (w.saci + w.habeas + w.immunity);
-  if (r < w.saci) return 'saci';
-  if (r < w.saci + w.habeas) return 'habeas';
-  return 'immunity';
+  const entries = Object.entries(BALANCE.powerups.weights) as [PowerKind, number][];
+  let r = rng() * entries.reduce((sum, [, w]) => sum + w, 0);
+  for (const [kind, w] of entries) {
+    r -= w;
+    if (r < 0) return kind;
+  }
+  return entries[entries.length - 1][0];
 }
 
 /** Gera a pista à frente do jogador, trecho a trecho. */

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { BALANCE } from '../data/balance';
 import type { Obstacle, PickupKind } from '../systems/types';
-import { makeDrunk, makePoliceman, makeVorcano, type Rig } from './characters';
-import { addOutline, toon } from './materials';
+import { isMoney } from '../systems/types';
+import { makeCareca, makeDrunk, makePoliceman, makeVorcano, type Rig } from './characters';
+import { addOutline, canvasTexture, toon } from './materials';
 
 const OB = BALANCE.obstacles;
 
@@ -142,7 +143,80 @@ function carroAlegorico(g: THREE.Group, length: number, seed: number): void {
   for (const z of [1.2, length - 1.2]) for (const x of [-0.95, 0.95]) g.add(wheel(x, 0.35, z));
 }
 
-export function makeObstacleView(o: Obstacle): ObstacleView {
+/** Boneco de Olinda dançando na calçada (decoração do cenário). `arms` balança no ritmo. */
+export function makeOlindaDancer(seed: number): { root: THREE.Group; arms: THREE.Object3D } {
+  const g = new THREE.Group();
+  const arms = olinda(g, seed);
+  return { root: g, arms };
+}
+
+/** Sedã oficial preto (veículo vindo de frente em Brasília). */
+function officialSedan(g: THREE.Group, length: number): void {
+  g.add(box(1.8, 0.75, length, 0x111111, 0.55, length / 2));
+  g.add(box(1.6, 0.6, length * 0.5, 0x1c1c2e, 1.2, length * 0.45));
+  g.add(box(1.4, 0.45, 0.04, 0x9fd3ff, 1.2, length * 0.2));
+  for (const x of [-0.6, 0.6]) g.add(box(0.3, 0.18, 0.05, 0xfff59d, 0.7, -0.01, x));
+  g.add(box(0.3, 0.2, 0.02, 0x009c3b, 1.0, -0.02, 0.85)); // bandeirinha no para-lama
+  for (const z of [0.8, length - 0.8]) for (const x of [-0.85, 0.85]) g.add(wheel(x, 0.33, z, 0.33));
+}
+
+/** Fita zebrada da Martelada: cones e fitas amarelo-e-preto dos dois lados da faixa, "X" na entrada. */
+let zebraMat: THREE.MeshBasicMaterial | null = null;
+function zebraTape(g: THREE.Group, length: number): void {
+  const coneGeo = new THREE.ConeGeometry(0.2, 0.8, 8);
+  for (let z = 0; z <= length; z += 5) {
+    for (const x of [-0.95, 0.95]) {
+      const cone = new THREE.Mesh(coneGeo, toon(0xff6d00));
+      cone.position.set(x, 0.4, z);
+      g.add(cone);
+    }
+  }
+  // Uma fita por lado e altura, com listras de textura (poucas malhas para o celular).
+  zebraMat ??= new THREE.MeshBasicMaterial({
+    side: THREE.DoubleSide,
+    map: canvasTexture(64, 8, (ctx) => {
+      ctx.fillStyle = '#ffd600';
+      ctx.fillRect(0, 0, 64, 8);
+      ctx.fillStyle = '#111111';
+      ctx.fillRect(32, 0, 32, 8);
+    }),
+  });
+  zebraMat.userData.shared = true;
+  for (const y of [0.8, 1.6]) {
+    for (const x of [-0.95, 0.95]) {
+      const geo = new THREE.PlaneGeometry(length, 0.16);
+      const uv = geo.attributes.uv;
+      for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * length); // 1 listra por metro
+      const tape = new THREE.Mesh(geo, zebraMat);
+      tape.rotation.y = Math.PI / 2;
+      tape.position.set(x, y, length / 2);
+      g.add(tape);
+    }
+  }
+  for (const s of [-1, 1]) {
+    for (const y of [0.9, 1.7]) {
+      const band = box(2.4, 0.16, 0.03, 0xffd600, y, 0);
+      band.rotation.z = s * 0.35;
+      g.add(band);
+    }
+  }
+}
+
+/** Púlpito do Careca de Toga. */
+export function makeJudgeStand(): { root: THREE.Group; judge: Rig } {
+  const g = new THREE.Group();
+  g.add(box(1.6, 1.3, 1.0, 0x5d4037, 0.65, 0));
+  g.add(box(1.8, 0.12, 1.2, 0x8d6e63, 1.36, 0));
+  g.add(box(0.9, 0.5, 0.04, 0xffd600, 0.8, -0.51)); // brasão sem texto
+  addOutline(g, 0.03);
+  const judge = makeCareca();
+  judge.root.position.set(0, 0.35, 0.5);
+  judge.root.rotation.y = Math.PI; // olha para o jogador
+  g.add(judge.root);
+  return { root: g, judge };
+}
+
+export function makeObstacleView(o: Obstacle, biome: 'rio' | 'brasilia' = 'rio'): ObstacleView {
   const g = new THREE.Group();
   const view: ObstacleView = { root: g };
   const seed = o.id;
@@ -209,6 +283,10 @@ export function makeObstacleView(o: Obstacle): ObstacleView {
       break;
     }
     case 'vehicle': {
+      if (biome === 'brasilia') {
+        officialSedan(g, o.length);
+        break;
+      }
       // Táxi do Rio (amarelo com faixa azul) vindo de frente
       g.add(box(1.8, 0.8, o.length, 0xffd600, 0.55, o.length / 2));
       g.add(box(1.82, 0.14, o.length, 0x1565c0, 0.6, o.length / 2));
@@ -228,6 +306,9 @@ export function makeObstacleView(o: Obstacle): ObstacleView {
       }
       break;
     }
+    case 'tape':
+      zebraTape(g, o.length);
+      break;
     case 'boi':
       view.spin = boi(g, seed);
       addOutline(view.spin, 0.04);
@@ -295,6 +376,64 @@ export function makePickupMesh(kind: PickupKind): THREE.Object3D {
       g.add(paper, seal, ribbon);
       break;
     }
+    case 'cafe': {
+      // Xícara de cafezinho no pires, com fumacinha
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.16, 0.32, 14), toon(0xffffff));
+      const coffee = new THREE.Mesh(new THREE.CircleGeometry(0.2, 14), toon(0x4e342e));
+      coffee.rotation.x = -Math.PI / 2;
+      coffee.position.y = 0.161;
+      coffee.userData.noOutline = true;
+      const saucer = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.3, 0.04, 16), toon(0xffffff));
+      saucer.position.y = -0.17;
+      const ear = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.03, 6, 10), toon(0xffffff));
+      ear.position.set(0.24, 0.02, 0);
+      g.add(cup, coffee, saucer, ear);
+      for (let i = 0; i < 3; i++) {
+        const puff = new THREE.Mesh(
+          new THREE.SphereGeometry(0.07 + i * 0.02, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7 }),
+        );
+        puff.position.set(Math.sin(i * 2) * 0.06, 0.3 + i * 0.15, 0);
+        puff.userData.noOutline = true;
+        g.add(puff);
+      }
+      break;
+    }
+    case 'sandal': {
+      // Chinelo de dedo genérico (sem marca) em cima de uma mola
+      const sole = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.4, 4, 10), toon(0x1e88e5));
+      sole.rotation.x = Math.PI / 2;
+      sole.scale.set(1, 1, 0.3);
+      sole.position.y = 0.1;
+      for (const s of [-1, 1]) {
+        const strap = box(0.04, 0.04, 0.3, 0xffd600, 0.18, -0.05, s * 0.09);
+        strap.rotation.y = -s * 0.5;
+        g.add(strap);
+      }
+      for (let i = 0; i < 4; i++) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.025, 6, 14), toon(0xbdbdbd));
+        coil.rotation.x = Math.PI / 2;
+        coil.position.y = -0.06 - i * 0.08;
+        g.add(coil);
+      }
+      g.add(sole);
+      break;
+    }
+    case 'pix': {
+      // Envelope verde com notas saindo
+      g.add(box(0.7, 0.45, 0.06, 0x2e7d32, 0, 0));
+      for (let i = 0; i < 3; i++) {
+        const bill = box(0.55, 0.26, 0.02, 0x66bb6a, 0, 0);
+        bill.position.set(-0.08 + i * 0.08, 0.28 + i * 0.03, -0.01);
+        bill.rotation.z = -0.25 + i * 0.25;
+        g.add(bill);
+      }
+      const flap = box(0.36, 0.36, 0.02, 0x1b5e20, 0, 0);
+      flap.rotation.z = Math.PI / 4;
+      flap.position.set(0, 0.1, 0.04);
+      g.add(flap);
+      break;
+    }
     case 'saci': {
       // Gorro vermelho do Saci girando num redemoinho
       const cap = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.6, 14), toon(0xd50000));
@@ -309,7 +448,7 @@ export function makePickupMesh(kind: PickupKind): THREE.Object3D {
       break;
     }
   }
-  if (kind === 'immunity' || kind === 'habeas' || kind === 'saci') {
+  if (!isMoney(kind)) {
     // Aura para diferenciar power-ups de dinheiro (também por forma, não só cor)
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.55, 0.65, 24),

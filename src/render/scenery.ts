@@ -1,9 +1,14 @@
 import * as THREE from 'three';
 import { BALANCE } from '../data/balance';
 import { canvasTexture, disposeTree, toon } from './materials';
+import { makeOlindaDancer } from './props';
 
-// Cenário do Rio de Janeiro: prédios e sobrados de um lado, calçadão de pedra portuguesa,
-// areia e mar do outro; Pão de Açúcar e Cristo Redentor no horizonte; bandeirinhas de festa junina.
+// Dois cenários que se alternam, com um túnel na troca:
+// Rio de Janeiro — prédios e sobrados de um lado, calçadão de pedra portuguesa, areia e mar do outro;
+//   Pão de Açúcar e Cristo Redentor no horizonte; bonecos de Olinda dançando nos trechos de carnaval.
+// Brasília — Eixo Monumental com Esplanada, gramados, espelho d'água e ipês; Congresso e Catedral
+//   no horizonte, fim de tarde.
+// Nos dois: bandeirinhas de festa junina e carros alegóricos.
 
 const LW = BALANCE.track.laneWidth;
 const ROAD_HALF = LW * 1.5 + 0.3;
@@ -17,7 +22,8 @@ const FACADES = [0xf48fb1, 0xffe082, 0x80deea, 0xa5d6a7, 0xffab91, 0xce93d8, 0xf
 const unitBox = new THREE.BoxGeometry(1, 1, 1);
 const unitCone = new THREE.ConeGeometry(1, 1, 8);
 const unitCyl = new THREE.CylinderGeometry(1, 1, 1, 8);
-for (const g of [unitBox, unitCone, unitCyl]) g.userData.shared = true;
+const unitSphere = new THREE.SphereGeometry(1, 10, 8);
+for (const g of [unitBox, unitCone, unitCyl, unitSphere]) g.userData.shared = true;
 
 function part(geo: THREE.BufferGeometry, color: number, sx: number, sy: number, sz: number, x: number, y: number, z: number) {
   const m = new THREE.Mesh(geo, toon(color));
@@ -219,11 +225,118 @@ function floatDecor(x: number, z: number): THREE.Group {
   return g;
 }
 
+// ── Brasília ──────────────────────────────────────────────────────
+
+/** Bloco da Esplanada dos Ministérios: lâmina comprida de vidro esverdeado. */
+function ministerio(x: number, z: number, d: number): THREE.Group {
+  const g = new THREE.Group();
+  const w = 9;
+  const h = 15;
+  const m = new THREE.Mesh(unitBox, buildingMat(0xb7d3c6));
+  m.scale.set(w, h, d);
+  m.position.y = h / 2 + 1.2;
+  g.add(m);
+  g.add(part(unitBox, 0xf5f5f5, w + 0.3, 1.2, d + 0.3, 0, 0.6, 0)); // térreo sobre pilotis
+  g.add(part(unitBox, 0xf5f5f5, w + 0.4, 0.5, d + 0.4, 0, h + 1.45, 0));
+  g.position.set(x, 0, z + d / 2);
+  return g;
+}
+
+/** Ipê florido (amarelo ou rosa), típico do cerrado na seca. */
+function ipe(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  const trunk = part(unitCyl, 0x5d4037, 0.16, 3.2, 0.16, 0, 1.6, 0);
+  trunk.rotation.z = (rnd() - 0.5) * 0.3;
+  g.add(trunk);
+  const color = rnd() < 0.6 ? 0xffd600 : 0xf06292;
+  for (let i = 0; i < 3; i++) {
+    const crown = new THREE.Mesh(unitSphere, toon(color));
+    const s = 1.3 + rnd() * 0.6;
+    crown.scale.set(s, s * 0.7, s);
+    crown.position.set((rnd() - 0.5) * 1.6, 3.4 + rnd() * 0.6, (rnd() - 0.5) * 1.6);
+    g.add(crown);
+  }
+  g.position.set(x, 0, z);
+  return g;
+}
+
+/** Poste alto do Eixo Monumental. */
+function poste(x: number, z: number, side: 1 | -1): THREE.Group {
+  const g = new THREE.Group();
+  g.add(part(unitCyl, 0x9e9e9e, 0.12, 9, 0.12, 0, 4.5, 0));
+  g.add(part(unitBox, 0x9e9e9e, 1.6, 0.12, 0.12, -side * 0.8, 9, 0));
+  g.add(part(unitBox, 0xfff59d, 0.5, 0.12, 0.3, -side * 1.5, 8.9, 0));
+  g.position.set(x, 0, z);
+  return g;
+}
+
+/** Palácio com colunas brancas em arco e rampa até o salão (inspirado no Planalto, sem ser réplica). */
+function palacio(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  const len = 30;
+  const white = 0xf7f7f7;
+  g.add(part(unitBox, 0x9fd3ff, 10, 4, len - 2, 0, 4.6, 0)); // vidro do salão
+  g.add(part(unitBox, white, 14, 0.5, len, 0, 2.4, 0)); // piso elevado
+  g.add(part(unitBox, white, 14, 0.6, len, 0, 7.0, 0)); // laje de cobertura
+  // Colunas: duas peças inclinadas formando um arco fino, na face voltada para a pista.
+  for (let cz = -len / 2 + 2; cz <= len / 2 - 2; cz += 4) {
+    for (const s of [-1, 1]) {
+      const c = part(unitBox, white, 0.25, 3.6, 0.6, -6.6, 4.8, cz + s * 0.5);
+      c.rotation.x = s * 0.35;
+      g.add(c);
+    }
+  }
+  // Rampa descendo em direção à pista
+  const ramp = part(unitBox, white, 7, 0.3, 3, -9.5, 1.3, -4);
+  ramp.rotation.z = -0.36;
+  g.add(ramp);
+  g.position.set(x, 0, z);
+  return g;
+}
+
+// ── Túnel de transição entre cenários ─────────────────────────────
+
+const TUNNEL_HALF = ROAD_HALF + 2.6;
+const TUNNEL_H = 8.4;
+
+function tunnelSegment(z0: number, entry: boolean, exit: boolean): THREE.Group {
+  const g = new THREE.Group();
+  const zc = z0 + SEG / 2;
+  for (const s of [-1, 1]) {
+    g.add(part(unitBox, 0xd7ccc8, 1, TUNNEL_H, SEG, s * (TUNNEL_HALF + 0.5), TUNNEL_H / 2, zc));
+    g.add(part(unitBox, 0x1565c0, 0.05, 0.6, SEG, s * TUNNEL_HALF, 1.4, zc)); // faixa azul de azulejo
+    g.add(part(unitBox, 0x8d8d8d, 1.2, 0.3, SEG, s * (TUNNEL_HALF - 0.6), 0.15, zc)); // mureta
+  }
+  g.add(part(unitBox, 0x9e9e9e, TUNNEL_HALF * 2 + 2, 1, SEG, 0, TUNNEL_H + 0.5, zc));
+  for (let z = z0 + 3; z < z0 + SEG; z += 6) {
+    for (const s of [-1, 1]) {
+      const lamp = new THREE.Mesh(unitBox, toon(0xfff59d, { emissive: 0x8a7a20 }));
+      lamp.scale.set(0.6, 0.15, 1.6);
+      lamp.position.set(s * (TUNNEL_HALF - 1.5), TUNNEL_H - 0.1, z);
+      g.add(lamp);
+    }
+  }
+  // Boca do túnel: fachada com morro por cima (esconde a troca de horizonte).
+  const portal = (z: number) => {
+    for (const s of [-1, 1]) g.add(part(unitBox, 0xbcaaa4, 30, 16, 2, s * (TUNNEL_HALF + 15), 8, z));
+    g.add(part(unitBox, 0xbcaaa4, TUNNEL_HALF * 2 + 2, 5, 2, 0, TUNNEL_H + 2.5, z));
+    const hill = new THREE.Mesh(unitSphere, toon(0x558b2f));
+    // Por cima do teto (nunca dentro do túnel), avançando sobre a pista.
+    hill.scale.set(45, 14, 30);
+    hill.position.set(0, TUNNEL_H + 1 + 14, z + (z === z0 ? 22 : -22));
+    g.add(hill);
+  };
+  if (entry) portal(z0);
+  if (exit) portal(z0 + SEG);
+  return g;
+}
+
 // ── Horizonte ─────────────────────────────────────────────────────
 
-function backdrop(): THREE.Group {
+const far = (color: number) => new THREE.MeshBasicMaterial({ color, fog: false });
+
+function rioBackdrop(): THREE.Group {
   const g = new THREE.Group();
-  const far = (color: number) => new THREE.MeshBasicMaterial({ color, fog: false });
 
   // Pão de Açúcar (lado do mar)
   const pao = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), far(0x5f7d6a));
@@ -259,53 +372,122 @@ function backdrop(): THREE.Group {
   return g;
 }
 
+/** Fim de tarde no cerrado: Congresso no fim do Eixo, Catedral de lado, sol baixo. */
+function brasiliaBackdrop(): THREE.Group {
+  const g = new THREE.Group();
+  const concrete = far(0xf3e9dc);
+  // Congresso: plataforma, torres gêmeas, cúpula (para baixo) e cuia (para cima)
+  const congresso = new THREE.Group();
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(90, 4, 30), concrete);
+  deck.position.y = 2;
+  congresso.add(deck);
+  for (const x of [-3.2, 3.2]) {
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(5, 70, 9), concrete);
+    tower.position.set(x, 35, 6);
+    congresso.add(tower);
+  }
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(11.4, 4, 9), concrete);
+  bridge.position.set(0, 50, 6);
+  congresso.add(bridge);
+  const cupula = new THREE.Mesh(new THREE.SphereGeometry(13, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), concrete);
+  cupula.scale.y = 0.55;
+  cupula.position.set(-26, 4, -2);
+  const cuia = new THREE.Mesh(new THREE.SphereGeometry(18, 20, 10, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), concrete);
+  cuia.scale.y = 0.45;
+  cuia.position.set(26, 12, -2);
+  congresso.add(cupula, cuia);
+  congresso.position.set(0, 0, 330);
+  // Catedral: coroa de pilares curvos
+  const catedral = new THREE.Group();
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const pillar = new THREE.Mesh(new THREE.BoxGeometry(1.4, 34, 1.4), concrete);
+    pillar.position.set(Math.cos(a) * 7, 15, Math.sin(a) * 7);
+    pillar.lookAt(0, 15, 0);
+    pillar.rotateX(0.5);
+    catedral.add(pillar);
+  }
+  const glass = new THREE.Mesh(new THREE.ConeGeometry(11, 24, 16, 1, true), far(0x7fb3d5));
+  glass.position.y = 12;
+  glass.rotation.x = Math.PI;
+  catedral.add(glass);
+  catedral.position.set(85, 0, 260);
+  // Sol baixo e cerrado com árvores retorcidas no horizonte
+  const sun = new THREE.Mesh(new THREE.CircleGeometry(26, 24), far(0xffe08a));
+  sun.position.set(-110, 38, 360);
+  sun.rotation.y = Math.PI;
+  g.add(congresso, catedral, sun);
+  for (let i = 0; i < 30; i++) {
+    const tree = new THREE.Mesh(unitSphere, far(pick([0x7a8a3a, 0x8f9a45, 0x6d7a32])));
+    const s = 3 + rnd() * 4;
+    tree.scale.set(s * 1.6, s, s * 1.6);
+    tree.position.set((rnd() < 0.5 ? -1 : 1) * (60 + rnd() * 120), s * 0.6, 200 + rnd() * 120);
+    g.add(tree);
+  }
+  return g;
+}
+
 // ── Gerenciador ───────────────────────────────────────────────────
+
+export type Biome = 'rio' | 'brasilia';
+
+/** A corrida alterna Rio e Brasília a cada ~1,5 km, com um túnel de transição na troca. */
+const BIOME_SEGS = 38; // 1.520 m
+const BIOME_LENGTH = BIOME_SEGS * SEG;
+const BIOMES: Biome[] = ['rio', 'brasilia'];
+
+const segBiome = (i: number): Biome => BIOMES[Math.floor(Math.max(0, i) / BIOME_SEGS) % BIOMES.length];
+/** Segmentos do túnel: o último de um cenário e o primeiro do seguinte. */
+const isTunnel = (i: number) => i > 0 && (i % BIOME_SEGS === BIOME_SEGS - 1 || (i % BIOME_SEGS === 0 && i >= BIOME_SEGS));
+
+export const biomeAt = (z: number): Biome => segBiome(Math.floor(z / SEG));
+
+/** Quanto de "Brasília" (0..1) tem o céu em z: troca suave ao longo do túnel. */
+export function brasiliaAmount(z: number): number {
+  const k = Math.round(z / BIOME_LENGTH);
+  if (k === 0) return 0;
+  const boundary = k * BIOME_LENGTH;
+  const t = Math.min(1, Math.max(0, (z - (boundary - SEG)) / (2 * SEG)));
+  const from = segBiome(k * BIOME_SEGS - 1) === 'brasilia' ? 1 : 0;
+  const to = segBiome(k * BIOME_SEGS) === 'brasilia' ? 1 : 0;
+  const s = t * t * (3 - 2 * t);
+  return from + (to - from) * s;
+}
+
+interface Dancer {
+  arms: THREE.Object3D;
+  root: THREE.Object3D;
+  phase: number;
+}
 
 export class Scenery {
   readonly root = new THREE.Group();
-  private ground = new THREE.Group();
-  private horizon = backdrop();
+  private horizons: Record<Biome, THREE.Group> = { rio: rioBackdrop(), brasilia: brasiliaBackdrop() };
   private segments = new Map<number, THREE.Group>();
-  private asphaltTex = asphaltTexture(260);
-  private calcadaoTex = calcadaoTexture(260);
+  private dancers = new Map<number, Dancer[]>();
+  private planes = new Map<number, THREE.PlaneGeometry>();
+  private texMats: { asphalt: THREE.MeshToonMaterial; calcadao: THREE.MeshToonMaterial };
 
   constructor() {
-    this.root.add(this.ground, this.horizon);
-
-    const plane = (w: number, color: number, x: number, map?: THREE.Texture) => {
-      const m = new THREE.Mesh(
-        new THREE.PlaneGeometry(w, 260),
-        map ? new THREE.MeshToonMaterial({ color, map }) : toon(color),
-      );
-      m.rotation.x = -Math.PI / 2;
-      m.position.set(x, 0, 130);
+    this.root.add(this.horizons.rio, this.horizons.brasilia);
+    const textured = (map: THREE.Texture) => {
+      const m = new THREE.MeshToonMaterial({ color: 0xffffff, map });
+      m.userData.shared = true;
       return m;
     };
-    this.ground.add(plane(ROAD_HALF * 2, 0xffffff, 0, this.asphaltTex));
-    // Calçada do lado dos prédios (pedra portuguesa clara) e calçadão de ondas do lado do mar
-    const leftWalk = plane(5, 0xe8e2d4, -ROAD_HALF - 2.5);
-    leftWalk.position.y = 0.15;
-    const rightWalk = plane(6, 0xffffff, ROAD_HALF + 3, this.calcadaoTex);
-    rightWalk.position.y = 0.15;
-    const sand = plane(30, 0xf3d9a4, ROAD_HALF + 6 + 15);
-    sand.position.y = 0.05;
-    const sea = plane(300, 0x1e88e5, ROAD_HALF + 36 + 150);
-    sea.position.y = -0.2;
-    const foam = plane(1.5, 0xffffff, ROAD_HALF + 36);
-    foam.position.y = 0.0;
-    this.ground.add(leftWalk, rightWalk, sand, sea, foam);
-    for (const s of [-1, 1]) {
-      const curb = new THREE.Mesh(unitBox, toon(0xbdbdbd));
-      curb.scale.set(0.3, 0.3, 260);
-      curb.position.set(s * ROAD_HALF, 0.15, 130);
-      this.ground.add(curb);
-    }
+    this.texMats = {
+      asphalt: textured(asphaltTexture(SEG)),
+      calcadao: textured(calcadaoTexture(SEG)),
+    };
   }
 
-  update(pz: number): void {
-    // Chão acompanha o jogador em passos do tamanho do ladrilho (a textura não "escorrega").
-    this.ground.position.z = Math.floor((pz - 40) / TILE) * TILE;
-    this.horizon.position.z = pz;
+  update(pz: number, time = 0): void {
+    // Horizonte do cenário em que o jogador vai estar logo à frente (troca dentro do túnel).
+    const horizon = biomeAt(pz + 30);
+    for (const b of BIOMES) {
+      this.horizons[b].visible = b === horizon;
+      this.horizons[b].position.z = pz;
+    }
 
     const first = Math.floor((pz - 40) / SEG);
     const last = Math.floor((pz + 190) / SEG);
@@ -321,6 +503,17 @@ export class Scenery {
         this.root.remove(seg);
         disposeTree(seg);
         this.segments.delete(i);
+        this.dancers.delete(i);
+      }
+    }
+
+    // Bonecos de Olinda dançando: balançam o corpo e os braços, cada um no seu tempo.
+    for (const list of this.dancers.values()) {
+      for (const d of list) {
+        d.root.rotation.y = Math.sin(time * 2.2 + d.phase) * 0.5;
+        d.root.rotation.z = Math.sin(time * 4.4 + d.phase) * 0.08;
+        d.root.position.y = Math.abs(Math.sin(time * 4.4 + d.phase)) * 0.25;
+        d.arms.rotation.z = Math.sin(time * 4.4 + d.phase) * 0.45;
       }
     }
   }
@@ -331,12 +524,54 @@ export class Scenery {
       disposeTree(seg);
     }
     this.segments.clear();
+    this.dancers.clear();
+  }
+
+  /** Faixa de chão de um segmento (geometria compartilhada por largura). */
+  private ground(g: THREE.Group, z0: number, w: number, x: number, y: number, mat: THREE.Material): void {
+    let geo = this.planes.get(w);
+    if (!geo) {
+      geo = new THREE.PlaneGeometry(w, SEG);
+      geo.userData.shared = true;
+      this.planes.set(w, geo);
+    }
+    const m = new THREE.Mesh(geo, mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.set(x, y, z0 + SEG / 2);
+    g.add(m);
+  }
+
+  private road(g: THREE.Group, z0: number): void {
+    this.ground(g, z0, ROAD_HALF * 2, 0, 0, this.texMats.asphalt);
+    for (const s of [-1, 1]) g.add(part(unitBox, 0xbdbdbd, 0.3, 0.3, SEG, s * ROAD_HALF, 0.15, z0 + SEG / 2));
   }
 
   private buildSegment(i: number): THREE.Group {
     rngState = (i * 2654435761) >>> 0 || 1; // mesmo segmento = mesmo visual
     const g = new THREE.Group();
     const z0 = i * SEG;
+    this.road(g, z0);
+
+    if (isTunnel(i)) {
+      const k = i % BIOME_SEGS;
+      g.add(tunnelSegment(z0, k === BIOME_SEGS - 1, k === 0));
+      return g;
+    }
+    if (segBiome(i) === 'brasilia') this.buildBrasilia(g, i, z0);
+    else this.buildRio(g, i, z0);
+
+    // Bandeirinhas de festa junina (quermesse) a cada 3 segmentos, nos dois cenários
+    if (i % 3 === 0 && i > 0) g.add(bandeirinhas(z0 + 18));
+    return g;
+  }
+
+  private buildRio(g: THREE.Group, i: number, z0: number): void {
+    // Calçada do lado dos prédios (pedra portuguesa clara), calçadão de ondas, areia e mar do outro lado
+    this.ground(g, z0, 5, -ROAD_HALF - 2.5, 0.15, toon(0xe8e2d4));
+    this.ground(g, z0, 6, ROAD_HALF + 3, 0.15, this.texMats.calcadao);
+    this.ground(g, z0, 30, ROAD_HALF + 21, 0.05, toon(0xf3d9a4));
+    this.ground(g, z0, 1.5, ROAD_HALF + 36, 0.0, toon(0xffffff));
+    this.ground(g, z0, 300, ROAD_HALF + 186, -0.2, toon(0x1e88e5));
 
     // Lado esquerdo: prédios e sobrados colados uns nos outros
     let z = z0;
@@ -357,8 +592,50 @@ export class Scenery {
     for (let k = 0; k < 4; k++) g.add(umbrella(ROAD_HALF + 12 + rnd() * 14, z0 + rnd() * SEG));
     if (i % 5 === 2) g.add(floatDecor(ROAD_HALF + 20, z0 + 20));
 
-    // Bandeirinhas de festa junina a cada 3 segmentos
-    if (i % 3 === 0 && i > 0) g.add(bandeirinhas(z0 + 18));
-    return g;
+    // Trecho de carnaval: bonecos de Olinda dançando nas calçadas
+    if (i % 4 === 1) {
+      const list: Dancer[] = [];
+      for (const [x, dz] of [
+        [-ROAD_HALF - 2.4, 8],
+        [ROAD_HALF + 3.2, 22],
+        [-ROAD_HALF - 2.4, 32],
+      ] as const) {
+        const d = makeOlindaDancer(i * 7 + list.length);
+        const holder = new THREE.Group(); // vira o boneco para o jogador; a dança mexe só no boneco
+        holder.add(d.root);
+        holder.position.set(x, 0.15, z0 + dz);
+        holder.rotation.y = Math.PI;
+        g.add(holder);
+        list.push({ root: d.root, arms: d.arms, phase: rnd() * Math.PI * 2 });
+      }
+      this.dancers.set(i, list);
+    }
+  }
+
+  private buildBrasilia(g: THREE.Group, i: number, z0: number): void {
+    // Calçadas, gramados, espelho d'água de um lado e cerrado seco ao fundo
+    for (const s of [-1, 1]) {
+      this.ground(g, z0, 2, s * (ROAD_HALF + 1), 0.12, toon(0xe0e0e0));
+      this.ground(g, z0, 300, s * (ROAD_HALF + 152), 0.02, toon(0xc5b358));
+    }
+    this.ground(g, z0, 24, -ROAD_HALF - 14, 0.06, toon(0x7cb342));
+    this.ground(g, z0, 5, ROAD_HALF + 4.5, 0.06, toon(0x7cb342));
+    this.ground(g, z0, 10, ROAD_HALF + 12, 0.04, toon(0x4fc3f7)); // espelho d'água
+    g.add(part(unitBox, 0xf5f5f5, 0.4, 0.4, SEG, ROAD_HALF + 7, 0.2, z0 + SEG / 2));
+    g.add(part(unitBox, 0xf5f5f5, 0.4, 0.4, SEG, ROAD_HALF + 17, 0.2, z0 + SEG / 2));
+    this.ground(g, z0, 12, ROAD_HALF + 23, 0.06, toon(0x7cb342));
+
+    // Esplanada: um ministério por segmento, recuado atrás do gramado
+    g.add(ministerio(-ROAD_HALF - 19, z0 + 6, 28));
+    for (let pz = z0 + 10; pz < z0 + SEG; pz += 20) {
+      g.add(poste(-ROAD_HALF - 0.8, pz, -1));
+      g.add(poste(ROAD_HALF + 0.8, pz, 1));
+    }
+    for (let k = 0; k < 3; k++) g.add(ipe(-ROAD_HALF - 4 - rnd() * 4, z0 + rnd() * SEG));
+    if (rnd() < 0.7) g.add(ipe(ROAD_HALF + 4.5, z0 + rnd() * SEG));
+    // Do outro lado do espelho d'água, de vez em quando, um palácio de colunas brancas
+    if (i % 4 === 2) g.add(palacio(ROAD_HALF + 30, z0 + 20));
+    else for (let k = 0; k < 2; k++) g.add(ipe(ROAD_HALF + 20 + rnd() * 8, z0 + rnd() * SEG));
+    if (i % 5 === 2) g.add(floatDecor(-ROAD_HALF - 7, z0 + 20));
   }
 }

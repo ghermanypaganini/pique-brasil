@@ -40,5 +40,18 @@ await page.screenshot({ path: `${out}/e-imunidade-vorcano.png` });
 await page.evaluate(() => { const g = window.__pb.game; g.player.powers.immunity = 0; g.lungeWarning = 2; g.chase = 15; });
 await page.waitForTimeout(1200);
 await page.screenshot({ path: `${out}/f-cuca-multidao.png` });
+// v1.1: Martelada, Cafezinho/Sandália/Emenda Pix, túnel e Brasília
+await page.evaluate(() => { const g = window.__pb.game; g.lungeWarning = 0; g.lungeActive = 0; g.chase = 80; g.startMartelada(1); });
+await page.waitForTimeout(700);
+await page.screenshot({ path: `${out}/g-martelada.png` });
+await page.evaluate(() => { const g = window.__pb.game; g.player.powers.cafe = 4; g.player.powers.sandal = 10; g.player.powers.pix = 15; });
+await page.waitForTimeout(400);
+await page.screenshot({ path: `${out}/h-cafe-sandalia-pix.png` });
+await page.evaluate(() => { const g = window.__pb.game; g.player.z = 1480; g.obstacles = []; g.pickups = []; g.player.invuln = 99; });
+await page.waitForTimeout(600);
+await page.screenshot({ path: `${out}/i-tunel.png` });
+await page.evaluate(() => { const g = window.__pb.game; g.player.z = 1640; g.obstacles = []; g.pickups = []; g.player.invuln = 99; });
+await page.waitForTimeout(1500);
+await page.screenshot({ path: `${out}/j-brasilia.png` });
 console.log(errors.length ? 'ERROS:\n' + errors.join('\n') : 'sem erros');
 await browser.close();

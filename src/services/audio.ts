@@ -13,6 +13,7 @@ export type Sfx =
   | 'shield'
   | 'cuca'
   | 'vorcano'
+  | 'gavel'
   | 'caught'
   | 'continue'
   | 'click';
@@ -238,6 +239,14 @@ export class AudioEngine {
         this.osc('square', 370, t, 0.35, out, 0.06);
         this.osc('square', 311, t + 0.45, 0.5, out, 0.06);
         this.osc('square', 370, t + 0.45, 0.5, out, 0.06);
+        break;
+      case 'gavel':
+        // Três batidas de martelo de juiz na madeira
+        for (let i = 0; i < 3; i++) {
+          this.noiseBurst(t + i * 0.22, 0.06, out, 0.5, 'bandpass', 1400);
+          const o = this.osc('sine', 160, t + i * 0.22, 0.12, out, 0.25);
+          o.frequency.exponentialRampToValueAtTime(70, t + i * 0.22 + 0.1);
+        }
         break;
       case 'caught': {
         const o = this.osc('sawtooth', 440, t, 0.9, out, 0.1);

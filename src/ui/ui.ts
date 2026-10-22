@@ -88,6 +88,9 @@ export class Ui {
         <div class="powers" data-k="powers">
           <div class="power" data-p="immunity"><span class="pi">🚘</span><span class="bar"><i></i></span></div>
           <div class="power" data-p="habeas"><span class="pi">📜</span></div>
+          <div class="power" data-p="cafe"><span class="pi">☕</span><span class="bar"><i></i></span></div>
+          <div class="power" data-p="sandal"><span class="pi">🩴</span><span class="bar"><i></i></span></div>
+          <div class="power" data-p="pix"><span class="pi">💸</span><span class="bar"><i></i></span></div>
           <div class="power" data-p="saci"><span class="pi">🌪️</span><span class="bar"><i></i></span></div>
         </div>
         <div class="toast" data-k="toast" role="status" aria-live="polite"></div>
@@ -379,7 +382,7 @@ export class Ui {
     const BAL = BALANCE.powerups;
     this.setPower('immunity', pw.immunity > 0, pw.immunity / BAL.immunity.duration);
     this.setPower('habeas', pw.habeas, 1);
-    this.setPower('saci', pw.saci > 0, pw.saci / BAL.saci.duration);
+    for (const k of ['saci', 'cafe', 'sandal', 'pix'] as const) this.setPower(k, pw[k] > 0, pw[k] / BAL[k].duration);
   }
 
   private setPower(name: string, on: boolean, fraction: number): void {

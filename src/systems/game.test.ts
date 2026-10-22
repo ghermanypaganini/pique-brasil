@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BALANCE, laneX } from '../data/balance';
 import { CHUNKS } from '../data/chunks';
-import { buildChunk, makeObstacle } from '../world/generator';
+import { buildChunk, makeObstacle, makeRng, pickPower } from '../world/generator';
 import { Game } from './game';
-import type { Obstacle, ObstacleKind } from './types';
+import type { Lane, Obstacle, ObstacleKind, PowerKind } from './types';
 
 const DT = 1 / 60;
 
@@ -268,5 +268,120 @@ describe('jogo', () => {
     run(g, 0.6);
     expect(g.collected).toBe(50);
     expect(g.player.boost).toBeGreaterThan(0);
+  });
+  it('Cafezinho acelera sem tornar invencível e não se soma à Imunidade', () => {
+    const g = emptyGame();
+    const v0 = g.speed;
+    g.player.powers.cafe = 4;
+    expect(g.speed).toBeCloseTo(v0 * BALANCE.powerups.cafe.speedMul, 5);
+    g.player.powers.immunity = 5;
+    expect(g.speed).toBeCloseTo(v0 * BALANCE.powerups.immunity.speedMul, 5);
+    // O limite do ranking assume que o Cafezinho nunca passa da Imunidade.
+    expect(BALANCE.powerups.cafe.speedMul).toBeLessThanOrEqual(BALANCE.powerups.immunity.speedMul);
+
+    const h = emptyGame();
+    h.player.powers.cafe = 4;
+    h.obstacles.push(obstacle('low', 1, 8));
+    const stumbles: string[] = [];
+    for (let t = 0; t < 1; t += DT) {
+      h.update(DT);
+      for (const e of h.drainEvents()) if (e.type === 'stumble') stumbles.push(e.kind);
+    }
+    expect(stumbles).toEqual(['light']);
+  });
+
+  it('Sandália de mola pula para o teto do ônibus sem rampa', () => {
+    const g = emptyGame();
+    g.player.powers.sandal = 10;
+    g.obstacles.push(obstacle('bus', 1, 7));
+    g.input('jump');
+    run(g, 0.9);
+    expect(g.player.speedMul).toBe(1);
+    expect(g.player.y).toBeCloseTo(BALANCE.obstacles.bus.height, 1);
+
+    // Sem a sandália, o mesmo pulo bate de frente.
+    const h = emptyGame();
+    h.obstacles.push(obstacle('bus', 1, 7));
+    h.input('jump');
+    run(h, 0.9);
+    expect(h.player.speedMul).toBeLessThan(1);
+  });
+
+  it('Emenda Pix dobra o dinheiro coletado', () => {
+    const g = emptyGame();
+    g.player.powers.pix = 15;
+    g.pickups.push({ id: 1, kind: 'bill', lane: 1, z: 5, y: 0.9, taken: false });
+    run(g, 0.6);
+    expect(g.collected).toBe(BALANCE.pickups.bill.value * BALANCE.powerups.pix.moneyMul);
+  });
+
+  it('power-ups com duração acabam e avisam', () => {
+    const g = emptyGame();
+    g.player.powers.sandal = 0.1;
+    g.player.powers.pix = 0.1;
+    const ended: string[] = [];
+    for (let t = 0; t < 0.3; t += DT) {
+      g.update(DT);
+      for (const e of g.drainEvents()) if (e.type === 'powerEnd') ended.push(e.kind);
+    }
+    expect(ended.sort()).toEqual(['pix', 'sandal']);
+  });
+
+  it('todos os power-ups aparecem no sorteio', () => {
+    const rng = makeRng(7);
+    const seen = new Set<PowerKind>();
+    for (let i = 0; i < 2000; i++) seen.add(pickPower(rng));
+    expect([...seen].sort()).toEqual(Object.keys(BALANCE.powerups.weights).sort());
+  });
+
+  it('Martelada interdita a faixa e sempre deixa um caminho livre', () => {
+    for (const lane of [0, 1, 2] as Lane[]) {
+      const g = emptyGame();
+      // Ônibus e banca se cruzando nas outras duas faixas: juntos com a fita fechariam a pista.
+      const others = ([0, 1, 2] as Lane[]).filter((l) => l !== lane);
+      g.obstacles.push(obstacle('bus', others[0], 50), obstacle('stand', others[1], 54));
+      g.obstacles.push(obstacle('bus', lane, 60)); // some debaixo da fita
+      g.startMartelada(lane);
+      const tape = g.obstacles.find((o) => o.kind === 'tape')!;
+      expect(tape.lane).toBe(lane);
+      expect(g.obstacles.some((o) => o.kind === 'bus' && o.lane === lane)).toBe(false);
+      for (let z = tape.z; z <= tape.z + tape.length; z += 0.5) {
+        const blocked = new Set(
+          g.obstacles
+            .filter((o) => (o.kind === 'bus' || o.kind === 'stand' || o.kind === 'tape') && z >= o.z && z <= o.z + o.length)
+            .map((o) => o.lane),
+        );
+        expect(blocked.size, `faixa ${lane}, z=${z}`).toBeLessThan(3);
+      }
+    }
+  });
+
+  it('correr na fita empurra para uma faixa livre com tropeço leve; Habeas Corpus derruba a fita', () => {
+    const g = emptyGame();
+    g.startMartelada(1);
+    const stumbles: string[] = [];
+    for (let t = 0; t < 4; t += DT) {
+      g.update(DT);
+      for (const e of g.drainEvents()) if (e.type === 'stumble') stumbles.push(e.kind);
+    }
+    expect(stumbles).toEqual(['light']);
+    expect(g.player.lane).not.toBe(1);
+
+    // Tentar voltar para a faixa interditada não funciona enquanto a fita durar.
+    const h = emptyGame();
+    h.startMartelada(2);
+    run(h, 2.2);
+    h.player.invuln = 0;
+    h.input('right');
+    run(h, 0.5);
+    expect(h.player.lane).toBe(1);
+
+    const k = emptyGame();
+    k.player.powers.habeas = true;
+    k.startMartelada(1);
+    run(k, 3);
+    expect(k.player.powers.habeas).toBe(false);
+    expect(k.obstacles.find((o) => o.kind === 'tape')!.knocked).toBe(true);
+    expect(k.chase).toBeGreaterThanOrEqual(BALANCE.chase.start);
   });
 });

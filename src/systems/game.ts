@@ -1,5 +1,5 @@
 import { BALANCE, laneOf, laneX } from '../data/balance';
-import { TrackGenerator, makeRng, type Rng } from '../world/generator';
+import { TrackGenerator, makeObstacle, makeRng, type Rng } from '../world/generator';
 import { groundAt } from '../world/surface';
 import type {
   Action,
@@ -23,7 +23,12 @@ const PW = BALANCE.powerups;
 const OB = BALANCE.obstacles;
 const LW = BALANCE.track.laneWidth;
 
-const isSolid = (k: ObstacleKind) => k === 'bus' || k === 'stand' || k === 'vehicle' || k === 'boi';
+const isSolid = (k: ObstacleKind) => k === 'bus' || k === 'stand' || k === 'vehicle' || k === 'boi' || k === 'tape';
+/** Bloqueiam a faixa de verdade (não dá para pular por cima sem ajuda). */
+const isBlocking = (k: ObstacleKind) => k === 'bus' || k === 'stand' || k === 'vehicle';
+
+/** Power-ups com duração (os outros ficam guardados até serem usados). */
+const TIMED = ['immunity', 'saci', 'cafe', 'sandal', 'pix'] as const;
 
 export interface PlayerState {
   lane: Lane;
@@ -47,6 +52,9 @@ export interface PlayerState {
     immunity: number; // s restantes de Imunidade Parlamentar
     habeas: boolean; // Habeas Corpus guardado (anula o próximo tropeço)
     saci: number; // s restantes do Redemoinho do Saci (ímã)
+    cafe: number; // s restantes do Cafezinho (mais velocidade)
+    sandal: number; // s restantes da Sandália de mola (pulo mais alto)
+    pix: number; // s restantes da Emenda Pix (dinheiro em dobro)
   };
 }
 
@@ -80,6 +88,10 @@ export class Game {
   private nextVorcanoAt: number = BALANCE.vorcano.firstAfter;
   private vorcanoDropT = 0;
 
+  /** Última Martelada do Careca de Toga (o desenho põe o púlpito no início da fita). */
+  martelada: { lane: Lane; z: number } | null = null;
+  private nextMarteladaAt: number = BALANCE.careca.firstAfter;
+
   private buffer: { action: Action; age: number }[] = [];
   private lastStumbleAt = -Infinity;
   private lastCaseAt = -Infinity;
@@ -110,7 +122,7 @@ export class Game {
       boost: 0,
       stumble: 0,
       stumbleKind: null,
-      powers: { immunity: 0, habeas: false, saci: 0 },
+      powers: { immunity: 0, habeas: false, saci: 0, cafe: 0, sandal: 0, pix: 0 },
     };
     this.fillTrack();
   }
@@ -133,8 +145,10 @@ export class Game {
 
   get speed(): number {
     const boost = this.player.boost > 0 ? 1 + BALANCE.speed.caseBoost : 1;
-    const immunity = this.player.powers.immunity > 0 ? PW.immunity.speedMul : 1;
-    return this.baseSpeed * this.player.speedMul * boost * immunity;
+    const pw = this.player.powers;
+    // Imunidade e Cafezinho não se somam: vale o maior.
+    const power = Math.max(pw.immunity > 0 ? PW.immunity.speedMul : 1, pw.cafe > 0 ? PW.cafe.speedMul : 1);
+    return this.baseSpeed * this.player.speedMul * boost * power;
   }
 
   get playerHeight(): number {
@@ -306,7 +320,7 @@ export class Game {
           break;
         case 'jump':
           if (p.grounded) {
-            p.vy = P.jumpVelocity;
+            p.vy = P.jumpVelocity * (p.powers.sandal > 0 ? PW.sandal.jumpMul : 1);
             p.grounded = false;
             p.roll = 0;
             this.events.push({ type: 'jump' });
@@ -369,8 +383,13 @@ export class Game {
     const front = p.z + P.halfDepth;
 
     for (const o of this.obstacles) {
-      if (o.hit || o.knocked || o.lane !== lane) continue;
+      if (o.knocked || o.lane !== lane) continue;
       if (front < o.z || back > o.z + o.length) continue;
+      if (o.kind === 'tape') {
+        this.hitTape(o);
+        continue;
+      }
+      if (o.hit) continue;
 
       let kind: StumbleKind | null = null;
       switch (o.kind) {
@@ -425,6 +444,25 @@ export class Game {
       }
       this.stumble(kind, o.kind);
     }
+  }
+
+  /** Fita da Martelada: empurra para uma faixa livre. Dura o trecho todo (não "gasta" como os outros). */
+  private hitTape(o: Obstacle): void {
+    const p = this.player;
+    if (p.y >= o.height - P.stepUp || p.lane !== o.lane) return; // por cima, ou já saindo da faixa
+    if (p.powers.immunity > 0) {
+      o.knocked = true; // o carro oficial rompe a fita
+      return;
+    }
+    const free = this.findFreeLane(o.lane);
+    if (free === null) {
+      o.knocked = true;
+      return;
+    }
+    this.moveToLane(free);
+    if (p.invuln > 0) return;
+    if (this.useHabeas(o)) return; // Habeas Corpus derruba a decisão: a fita cai
+    this.stumble('light', 'tape');
   }
 
   /** Habeas Corpus anula o tropeço: o obstáculo sai do caminho e o jogador segue. */
@@ -525,8 +563,9 @@ export class Game {
 
   private collectMoney(kind: 'coin' | 'bill' | 'case'): void {
     const cfg = BALANCE.pickups[kind];
-    this.coins += cfg.value;
-    this.collected += cfg.value;
+    const value = cfg.value * (this.player.powers.pix > 0 ? PW.pix.moneyMul : 1);
+    this.coins += value;
+    this.collected += value;
     this.chase += cfg.chase;
     if (kind === 'case') {
       this.player.boost = BALANCE.speed.caseBoostTime;
@@ -543,7 +582,7 @@ export class Game {
     } else if (kind === 'habeas') {
       pw.habeas = true;
     } else {
-      pw.saci = PW.saci.duration;
+      pw[kind] = PW[kind].duration;
     }
   }
 
@@ -566,12 +605,18 @@ export class Game {
         this.events.push({ type: 'powerEnd', kind: 'immunity' });
       }
     }
-    if (pw.saci > 0) {
-      pw.saci = Math.max(0, pw.saci - dt);
-      if (pw.saci === 0) this.events.push({ type: 'powerEnd', kind: 'saci' });
+    for (const k of TIMED) {
+      if (k === 'immunity' || pw[k] <= 0) continue;
+      pw[k] = Math.max(0, pw[k] - dt);
+      if (pw[k] === 0) this.events.push({ type: 'powerEnd', kind: k });
     }
 
     this.updateVorcano(dt);
+    if (this.time >= this.nextMarteladaAt && pw.immunity === 0) {
+      const K = BALANCE.careca;
+      this.nextMarteladaAt = this.time + K.intervalMin + this.rng() * (K.intervalMax - K.intervalMin);
+      this.startMartelada(Math.floor(this.rng() * 3) as Lane);
+    }
 
     // Investidas da multidão
     if (this.lungeWarning > 0) {
@@ -590,6 +635,43 @@ export class Game {
         this.rng() * (C.lunge.intervalMax - C.lunge.intervalMin);
       this.events.push({ type: 'lungeWarning' });
     }
+  }
+
+  /**
+   * Martelada do Careca de Toga: interdita uma faixa com fita zebrada logo à frente.
+   * Garante que sempre sobra um caminho: tira da pista o que fecharia as outras duas faixas ao mesmo tempo.
+   */
+  startMartelada(lane: Lane): void {
+    const K = BALANCE.careca;
+    const p = this.player;
+    const z0 = p.z + this.baseSpeed * K.warning;
+    const z1 = z0 + K.tapeLength;
+    const overlaps = (o: Obstacle, a: number, b: number) => o.z <= b && o.z + o.length >= a;
+
+    // Na faixa interditada, a fita substitui o que houver (rampas e tetos saem juntos).
+    const inTape = (o: Obstacle) =>
+      o.lane === lane && !o.knocked && (overlaps(o, z0, z1) || (o.kind === 'ramp' && overlaps(o, z0 - 0.1, z1 + o.length)));
+    this.obstacles = this.obstacles.filter((o) => !inTape(o));
+    this.pickups = this.pickups.filter((k) => !(k.lane === lane && k.z >= z0 && k.z <= z1));
+
+    // Trecho em que cada outra faixa fica fechada (veículos andam até o jogador: conta o caminho todo).
+    const others = ([0, 1, 2] as Lane[]).filter((l) => l !== lane);
+    const spans = (l: Lane) =>
+      this.obstacles
+        .filter((o) => o.lane === l && !o.knocked && isBlocking(o.kind))
+        .map((o) => ({ o, a: o.kind === 'vehicle' ? p.z : o.z, b: o.z + o.length }))
+        .filter((s) => s.a <= z1 + 2 && s.b >= z0 - 2);
+    const [sa, sb] = others.map(spans);
+    const conflict = (x: { a: number; b: number }, ys: { a: number; b: number }[]) =>
+      ys.some((y) => x.a <= y.b + 6 && x.b >= y.a - 6); // folga para trocar de faixa
+    // Remove da faixa com menos obstáculos os que se cruzam com a outra.
+    const [few, many] = sa.length <= sb.length ? [sa, sb] : [sb, sa];
+    const drop = new Set(few.filter((s) => conflict(s, many)).map((s) => s.o));
+    if (drop.size) this.obstacles = this.obstacles.filter((o) => !drop.has(o));
+
+    this.obstacles.push(makeObstacle(this.gen.ids, 'tape', lane, z0));
+    this.martelada = { lane, z: z0 };
+    this.events.push({ type: 'martelada', lane });
   }
 
   /** Vorcano passa de carro-forte jogando maletas e notas na pista à frente. */
@@ -636,6 +718,7 @@ export class Game {
     if (p.boost > 0) this.chase += 3 * dt;
     if (this.lungeActive > 0) this.chase -= C.lunge.drainPerSec * dt;
     if (p.powers.immunity > 0) this.chase += PW.immunity.chasePerSec * dt;
+    else if (p.powers.cafe > 0) this.chase += PW.cafe.chasePerSec * dt;
     this.chase = Math.min(C.max, this.chase);
 
     if (this.chase <= 0) {

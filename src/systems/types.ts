@@ -9,7 +9,8 @@ export type ObstacleKind =
   | 'vehicle' // veículo vindo de frente
   | 'hole' // buraco: pular
   | 'boi' // bumba-meu-boi: atravessa a pista dançando de lado
-  | 'drunk'; // homem bêbado: anda em zigue-zague
+  | 'drunk' // homem bêbado: anda em zigue-zague
+  | 'tape'; // fita zebrada da Martelada: faixa interditada
 
 /** Variações visuais com a mesma mecânica do tipo. */
 export type ObstacleVariant = 'cavalete' | 'police' | 'faixa' | 'olinda' | 'roof' | null;
@@ -32,7 +33,7 @@ export interface Obstacle {
 }
 
 export type MoneyKind = 'coin' | 'bill' | 'case';
-export type PowerKind = 'immunity' | 'habeas' | 'saci';
+export type PowerKind = 'immunity' | 'habeas' | 'saci' | 'cafe' | 'sandal' | 'pix';
 export type PickupKind = MoneyKind | PowerKind;
 
 export const isMoney = (k: PickupKind): k is MoneyKind => k === 'coin' || k === 'bill' || k === 'case';
@@ -65,5 +66,6 @@ export type GameEvent =
   | { type: 'lungeWarning' }
   | { type: 'lunge' }
   | { type: 'vorcano' }
+  | { type: 'martelada'; lane: Lane }
   | { type: 'caught' }
   | { type: 'continued' };

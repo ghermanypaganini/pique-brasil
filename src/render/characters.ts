@@ -274,6 +274,39 @@ export function makeVorcano(): Rig {
   return rig;
 }
 
+/** Careca de Toga: juiz careca genérico, toga preta, martelo na mão direita. Sem nome nem traços de alguém real. */
+export function makeCareca(): Rig {
+  const rig = baseRig({ torso: 0x15151a, pants: 0x15151a, skin: 0xe8b98a, shoes: 0x111111 });
+  // Toga até os pés, gola branca
+  const robe = mesh(new THREE.CylinderGeometry(0.36, 0.55, 1.0, 14), 0x15151a);
+  robe.position.y = 0.62;
+  const collar = mesh(new THREE.BoxGeometry(0.2, 0.22, 0.05), 0xffffff);
+  collar.position.set(0, 1.3, 0.22);
+  collar.userData.noOutline = true;
+  rig.body.add(robe, collar);
+  // Careca brilhando: só um tufo de cabelo de cada lado
+  for (const x of [-0.3, 0.3]) {
+    const tuft = mesh(new THREE.SphereGeometry(0.11, 8, 6), 0x9e9e9e);
+    tuft.position.set(x, 0.02, -0.08);
+    rig.head.add(tuft);
+  }
+  const shine = mesh(new THREE.SphereGeometry(0.06, 8, 6), 0xffffff);
+  shine.position.set(-0.1, 0.32, 0.12);
+  shine.userData.noOutline = true;
+  rig.head.add(shine);
+  const gavel = new THREE.Group();
+  const handle = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 6), 0x6d4c41);
+  const hammer = mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.3, 10), 0x8d6e63);
+  hammer.rotation.z = Math.PI / 2;
+  hammer.position.y = -0.25;
+  gavel.add(handle, hammer);
+  gavel.rotation.x = Math.PI / 2;
+  gavel.position.set(0, -0.7, 0.22);
+  rig.armR.add(gavel);
+  addOutline(rig.root, 0.03);
+  return rig;
+}
+
 /** Saci (folclore): menino de uma perna só com gorro vermelho. Formas simples, sem cachimbo. */
 export function makeSaci(): THREE.Group {
   const g = new THREE.Group();

@@ -575,9 +575,9 @@ public/
 - Deploy na Vercel e no itch.io; submissão enviada a Poki e CrazyGames.
 
 ### 15.2 O que fica para a v1.1
-- Cenário Brasília e transição entre cenários.
-- Careca de Toga (Martelada) e Bonecos de Olinda dançando como decoração.
-- Power-ups Cafezinho, Sandália de mola e Emenda Pix.
+- ~~Cenário Brasília e transição entre cenários.~~ ✅ (seção 17)
+- ~~Careca de Toga (Martelada) e Bonecos de Olinda dançando como decoração.~~ ✅
+- ~~Power-ups Cafezinho, Sandália de mola e Emenda Pix.~~ ✅
 - Loja, skins, upgrades, missões, desafio diário.
 - Modelos 3D gerados por IA + animações Mixamo.
 - Outdoors patrocinados e demais espaços da seção 10.3.
@@ -612,4 +612,23 @@ Tudo da seção 15.1, incluindo os itens de corte de emergência (Vorcano, Cuca 
 2. Informar o e-mail do card "ANUNCIE AQUI" (`public/sponsors/sponsors.json`, campo `contact`).
 3. Testar em celular real (Android e iPhone) e calibrar a dificuldade em `src/data/balance.ts`.
 4. Publicar no itch.io (`npm run build:itch`) e enviar para Poki/CrazyGames (`npm run build:poki`, `npm run build:crazygames`), conferindo as regras de conteúdo de cada portal.
+
+## 17. v1.1 — andamento
+
+### 17.1 Bloco Conteúdo ✅
+| Item | Como ficou |
+|---|---|
+| Cenário Brasília | Eixo Monumental com Esplanada (ministérios), gramados, espelho d'água, ipês amarelos e rosa, postes altos, palácio de colunas brancas com rampa; Congresso e Catedral no horizonte; céu e luz de fim de tarde. Carros vindo de frente viram sedãs oficiais pretos |
+| Transição | Rio e Brasília se alternam a cada 1.520 m, começando no Rio, com um túnel de 80 m na troca. Céu, neblina e luz mudam suavemente dentro do túnel; o horizonte troca lá dentro |
+| Careca de Toga — Martelada | A partir de 50 s, a cada 40–70 s (fora da Imunidade): o juiz aparece num púlpito ao lado da pista batendo o martelo (som de 3 batidas + aviso na tela) e uma faixa fica interditada por 70 m de fita zebrada, começando ~2 s à frente. Bater na fita = tropeço leve e empurrão para uma faixa livre. O jogo garante um caminho livre: remove o que fecharia as outras duas faixas ao mesmo tempo. Habeas Corpus derruba a fita; o carro oficial a rompe; a Sandália de mola pula por cima |
+| Bonecos de Olinda dançando | Grupos de 3 bonecos dançando nas calçadas do Rio a cada 160 m (trechos de carnaval) |
+| Cafezinho | +35% de velocidade por 4 s, afasta a multidão (+10/s), mas continua tropeçando. Não soma com a Imunidade (vale o maior). Visual: fumacinha saindo da cabeça, mais linhas de velocidade |
+| Sandália de mola | Pulo 30% mais forte por 10 s (alcança o teto do ônibus sem rampa e passa por cima da fita). Visual: molas nos pés, passo saltitante |
+| Emenda Pix | Dinheiro em dobro por 15 s. Visual: notas girando em volta do personagem |
+
+- Sorteio dos power-ups: Saci 22%, Habeas 22%, Imunidade 16%, Cafezinho 14%, Sandália 13%, Emenda Pix 13% (`balance.ts`).
+- Ranking: o limite de dinheiro por metro dobrou por causa da Emenda Pix; o de velocidade continua válido porque Cafezinho e Imunidade não se somam (há teste garantindo).
+
+### 17.2 Próximos blocos
+Métricas (PostHog/Sentry) · Meta-jogo (loja, skins, upgrades, missões, desafio diário) · Patrocínio extra (outdoors, power-up patrocinado) · Acessibilidade restante · Arte 3D por IA.
 

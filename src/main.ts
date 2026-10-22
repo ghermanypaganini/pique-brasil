@@ -187,6 +187,7 @@ const SFX: Partial<Record<GameEvent['type'], Sfx>> = {
   shieldUsed: 'shield',
   lungeWarning: 'cuca',
   vorcano: 'vorcano',
+  martelada: 'gavel',
   caught: 'caught',
   continued: 'continue',
 };
@@ -207,6 +208,7 @@ function handleEvent(e: GameEvent) {
     if (e.type === 'caught' && game.phase === 'continue') setScreen('continue');
     if (e.type === 'shieldUsed') ui.toast(t('habeasUsed'));
     if (e.type === 'vorcano') ui.toast(t('vorcano'));
+    if (e.type === 'martelada') ui.toast(t('martelada'));
   }
 }
 

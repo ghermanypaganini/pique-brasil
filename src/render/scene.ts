@@ -5,11 +5,16 @@ import type { PickupKind } from '../systems/types';
 import { isMoney } from '../systems/types';
 import { animateRun, makeChaser, makeCuca, makeRunner, makeSaci, type Rig } from './characters';
 import { disposeTree } from './materials';
-import { makeArmoredTruck, makeObstacleView, makeOfficialCar, makePickupMesh, type ObstacleView } from './props';
-import { Scenery } from './scenery';
+import { makeArmoredTruck, makeJudgeStand, makeObstacleView, makeOfficialCar, makePickupMesh, type ObstacleView } from './props';
+import { Scenery, biomeAt, brasiliaAmount } from './scenery';
 import { SpeedLines } from './speedlines';
 
 const LW = BALANCE.track.laneWidth;
+
+// Céu e luz de cada cenário: sol forte no Rio, fim de tarde alaranjado em Brasília.
+const SKY = { rio: new THREE.Color(0x8fd3ff), brasilia: new THREE.Color(0xffb27a) };
+const SUN = { rio: new THREE.Color(0xfff4e0), brasilia: new THREE.Color(0xffc08a) };
+const HEMI = { rio: new THREE.Color(0xffffff), brasilia: new THREE.Color(0xffe2c4) };
 
 /** Pool simples por chave: reaproveita objetos em vez de criar/destruir (evita travadas de GC). */
 class Pool<T extends { root: THREE.Object3D }> {
@@ -65,6 +70,12 @@ export class SceneRenderer {
   private whirl: THREE.Mesh;
   private saci = makeSaci();
   private truck = makeArmoredTruck();
+  private judge = makeJudgeStand();
+  private steam: THREE.Group; // Cafezinho
+  private springs: THREE.Object3D[] = []; // Sandália de mola (presas nos pés do personagem)
+  private pixOrbit: THREE.Group; // Emenda Pix
+  private sun: THREE.DirectionalLight;
+  private hemi: THREE.HemisphereLight;
   private cuca = makeCuca();
   private cucaT = -1; // progresso do voo da Cuca (-1 = escondida)
   private truckZ = 0;
@@ -87,10 +98,11 @@ export class SceneRenderer {
     this.scene.background = new THREE.Color(0x8fd3ff);
     this.scene.fog = new THREE.Fog(0x8fd3ff, 80, 200);
 
-    this.scene.add(new THREE.HemisphereLight(0xffffff, 0xb08d6e, 1.5));
-    const sun = new THREE.DirectionalLight(0xfff4e0, 1.8);
-    sun.position.set(-5, 12, -4);
-    this.scene.add(sun);
+    this.hemi = new THREE.HemisphereLight(0xffffff, 0xb08d6e, 1.5);
+    this.scene.add(this.hemi);
+    this.sun = new THREE.DirectionalLight(0xfff4e0, 1.8);
+    this.sun.position.set(-5, 12, -4);
+    this.scene.add(this.sun);
     this.scene.add(this.world);
     this.world.add(this.scenery.root, this.speedLines.root);
 
@@ -107,9 +119,23 @@ export class SceneRenderer {
       new THREE.CylinderGeometry(1.1, 0.35, 2.4, 20, 4, true),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, side: THREE.DoubleSide, depthWrite: false }),
     );
+    this.steam = new THREE.Group();
+    for (let i = 0; i < 4; i++) {
+      const puff = new THREE.Mesh(
+        new THREE.SphereGeometry(0.14, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6, depthWrite: false }),
+      );
+      this.steam.add(puff);
+    }
+    this.pixOrbit = new THREE.Group();
+    for (let i = 0; i < 3; i++) {
+      const bill = makePickupMesh('bill');
+      bill.scale.setScalar(0.7);
+      this.pixOrbit.add(bill);
+    }
     this.saci.scale.setScalar(0.9);
     this.cuca.scale.setScalar(1.3);
-    const fx = [this.officialCar, this.habeasPaper, this.whirl, this.saci, this.truck.root, this.cuca];
+    const fx = [this.officialCar, this.habeasPaper, this.whirl, this.saci, this.truck.root, this.cuca, this.judge.root, this.steam, this.pixOrbit];
     this.world.add(this.shadow, ...fx);
     for (const o of fx) o.visible = false;
   }
@@ -118,6 +144,19 @@ export class SceneRenderer {
     if (this.runner) this.removeAndDispose(this.runner.root);
     this.runner = makeRunner(game.character);
     this.world.add(this.runner.root);
+    // Molas da Sandália: uma em cada pé, escondidas até pegar o power-up.
+    this.springs = [this.runner.legL, this.runner.legR].map((leg) => {
+      const spring = new THREE.Group();
+      for (let i = 0; i < 3; i++) {
+        const coil = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.025, 6, 12), new THREE.MeshBasicMaterial({ color: 0xbdbdbd }));
+        coil.rotation.x = Math.PI / 2;
+        coil.position.y = -0.8 - i * 0.07;
+        spring.add(coil);
+      }
+      spring.visible = false;
+      leg.add(spring);
+      return spring;
+    });
     for (const r of this.crowd) this.removeAndDispose(r.root);
     this.crowd = [];
     this.crowdCloths = [];
@@ -163,8 +202,10 @@ export class SceneRenderer {
       let e = this.obstacles.get(o.id);
       if (!e) {
         // A malha depende do tipo, da variante e do tamanho; só reaproveita quando tudo bate.
-        const key = `${o.kind}:${o.variant}:${o.length.toFixed(1)}`;
-        e = { key, view: this.obstaclePool.get(key, () => makeObstacleView(o)), knockT: 0 };
+        // Em Brasília, os carros vindo de frente são sedãs oficiais pretos.
+        const biome = o.kind === 'vehicle' ? biomeAt(o.z) : 'rio';
+        const key = `${o.kind}:${o.variant}:${o.length.toFixed(1)}:${biome}`;
+        e = { key, view: this.obstaclePool.get(key, () => makeObstacleView(o, biome)), knockT: 0 };
         e.view.root.rotation.set(0, 0, 0);
         this.obstacles.set(o.id, e);
       }
@@ -190,7 +231,9 @@ export class SceneRenderer {
         if (siren) siren.visible = this.flashes || Math.floor(this.time * 4) % 2 === 0;
       }
 
-      if (o.knocked) {
+      if (o.knocked && o.kind === 'tape') {
+        root.visible = false; // fita rompida (carro oficial ou Habeas Corpus)
+      } else if (o.knocked) {
         // Sai voando para o lado, estilo desenho animado.
         e.knockT += dt;
         const t = e.knockT;
@@ -256,7 +299,8 @@ export class SceneRenderer {
     this.time += dt;
     const p = game.player;
     this.ensureCrowd(game, width);
-    this.scenery.update(p.z);
+    this.scenery.update(p.z, this.time);
+    this.updateSky(p.z);
     this.syncObstacles(game, dt);
     this.syncPickups(game);
 
@@ -319,6 +363,8 @@ export class SceneRenderer {
       (this.whirl.material as THREE.MeshBasicMaterial).opacity = ending ? 0.1 : 0.35;
     }
 
+    this.renderPowers(game);
+
     const ground = game.groundHeight;
     this.shadow.position.set(p.x, 0.03 + ground, p.z);
     const s = Math.max(0.4, 1 - (p.y - ground) * 0.2);
@@ -328,6 +374,47 @@ export class SceneRenderer {
     this.renderEvents(game, dt);
     this.renderCamera(game, dt, settings, running);
     this.renderer.render(this.scene, this.camera);
+  }
+
+  private updateSky(z: number): void {
+    const t = brasiliaAmount(z);
+    const bg = this.scene.background as THREE.Color;
+    bg.copy(SKY.rio).lerp(SKY.brasilia, t);
+    (this.scene.fog as THREE.Fog).color.copy(bg);
+    this.sun.color.copy(SUN.rio).lerp(SUN.brasilia, t);
+    this.hemi.color.copy(HEMI.rio).lerp(HEMI.brasilia, t);
+  }
+
+  /** Cafezinho (fumaça saindo da cabeça), Sandália de mola (molas nos pés), Emenda Pix (notas em volta). */
+  private renderPowers(game: Game): void {
+    const p = game.player;
+    const pw = p.powers;
+    const r = this.runner!;
+    const driving = pw.immunity > 0;
+
+    this.steam.visible = pw.cafe > 0 && !driving;
+    if (this.steam.visible) {
+      this.steam.children.forEach((puff, i) => {
+        const t = (this.time * 1.6 + i / 4) % 1;
+        puff.position.set(p.x + Math.sin(t * 6 + i) * 0.15, p.y + 2.2 + t * 1.2, p.z - 0.2 - t * 1.5);
+        puff.scale.setScalar(0.6 + t);
+        ((puff as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - t);
+      });
+    }
+
+    for (const s of this.springs) s.visible = pw.sandal > 0 && !driving;
+    if (pw.sandal > 0 && p.grounded && p.roll === 0) r.body.position.y += Math.abs(Math.sin(this.runPhase)) * 0.12; // passo saltitante
+
+    this.pixOrbit.visible = pw.pix > 0;
+    if (pw.pix > 0) {
+      const ending = !this.flashes && pw.pix < 2 && Math.floor(this.time * 8) % 2 === 0; // avisa que está acabando
+      this.pixOrbit.children.forEach((bill, i) => {
+        const a = this.time * 2.5 + (i / 3) * Math.PI * 2;
+        bill.position.set(p.x + Math.cos(a) * 1.0, p.y + (driving ? 2.0 : 1.0) + Math.sin(a * 2) * 0.2, p.z + Math.sin(a) * 1.0);
+        bill.rotation.y = -a;
+        bill.visible = !ending;
+      });
+    }
   }
 
   /** Posição horizontal na tela (0 = esquerda, 1 = direita) de um ponto do mundo. Usado nos testes. */
@@ -359,6 +446,19 @@ export class SceneRenderer {
 
   private renderEvents(game: Game, dt: number): void {
     const p = game.player;
+
+    // Careca de Toga: no púlpito ao lado do começo da fita, batendo o martelo até o jogador passar.
+    const m = game.martelada;
+    const judgeOn = m !== null && p.z < m.z + 6;
+    this.judge.root.visible = judgeOn;
+    if (m && judgeOn) {
+      const side = m.lane === 2 ? -1 : 1; // lado da pista mais perto da faixa interditada (+x = esquerda)
+      this.judge.root.position.set(side * (LW * 1.5 + 1.4), 0, m.z - 1.5);
+      this.judge.root.rotation.y = side * 0.5;
+      const hit = Math.abs(Math.sin(this.time * 7));
+      this.judge.judge.armR.rotation.x = -2.4 + hit * 1.4;
+      this.judge.judge.armL.rotation.x = -0.3;
+    }
 
     // Vorcano: carro-forte passa pela calçada à frente, jogando maletas.
     const vOn = game.vorcanoActive > 0;
@@ -393,9 +493,11 @@ export class SceneRenderer {
     // Progresso na curva de velocidade (0 na largada, 1 no máximo). Maleta e Imunidade entram
     // só pelos extras abaixo, para não serem contadas duas vezes.
     const speedT = (game.baseSpeed - BALANCE.speed.base) / (BALANCE.speed.max - BALANCE.speed.base);
-    const targetFov = 64 + speedT * 14 + (p.boost > 0 ? 6 : 0) + (p.powers.immunity > 0 ? 8 : 0);
+    const immune = p.powers.immunity > 0;
+    const cafe = p.powers.cafe > 0;
+    const targetFov = 64 + speedT * 14 + (p.boost > 0 ? 6 : 0) + (immune ? 8 : cafe ? 6 : 0);
     // Linhas de velocidade (desligadas com "reduzir tremor", que é a opção de menos movimento).
-    const extra = p.powers.immunity > 0 ? 0.4 : p.boost > 0 ? 0.25 : 0;
+    const extra = immune ? 0.4 : cafe ? 0.3 : p.boost > 0 ? 0.25 : 0;
     const lines = running && !settings.reduceShake ? Math.min(1, speedT * 1.1 + extra) * p.speedMul : 0;
     this.speedLines.update(p.z, lines);
     this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 4);

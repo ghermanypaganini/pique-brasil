@@ -80,9 +80,24 @@ export const BALANCE = {
 
   powerups: {
     minInterval: 16, // s entre power-ups
-    weights: { saci: 0.4, habeas: 0.35, immunity: 0.25 },
+    weights: { saci: 0.22, habeas: 0.22, immunity: 0.16, cafe: 0.14, sandal: 0.13, pix: 0.13 },
     immunity: { duration: 5, speedMul: 1.6, chasePerSec: 40, graceAfter: 1 },
     saci: { duration: 10, reachAhead: 3 }, // ímã: coleta dinheiro das 3 faixas até 3 m à frente
+    // Cafezinho: corre mais rápido, mas continua tropeçando. Não soma com a Imunidade (vale o maior),
+    // então o limite de velocidade do ranking continua valendo.
+    cafe: { duration: 4, speedMul: 1.35, chasePerSec: 10 },
+    sandal: { duration: 10, jumpMul: 1.3 }, // Sandália de mola: pula ~1,7× mais alto (alcança o teto do ônibus)
+    pix: { duration: 15, moneyMul: 2 }, // Emenda Pix: dinheiro em dobro
+  },
+
+  // Careca de Toga: bate o martelo e interdita uma faixa com fita zebrada.
+  careca: {
+    firstAfter: 50, // s
+    intervalMin: 40,
+    intervalMax: 70,
+    warning: 2, // s entre o aviso e o jogador chegar na fita
+    tapeLength: 70, // m de faixa interditada (~3–4 s de corrida)
+    tapeHeight: 2.0, // não dá para pular sem a Sandália de mola
   },
 
   vorcano: {
