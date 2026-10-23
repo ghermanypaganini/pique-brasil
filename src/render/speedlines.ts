@@ -3,7 +3,7 @@ import { BALANCE } from '../data/balance';
 
 // Linhas de velocidade: riscos brancos parados no mundo, nas laterais da pista.
 // Como o jogador passa por eles, parecem voar em direção à câmera; ficam mais visíveis
-// e mais compridos conforme a velocidade sobe.
+// e mais compridos conforme a velocidade sobe. Desenhados em lote (uma chamada para todos).
 
 const COUNT = 36;
 const AHEAD = 60; // metros à frente do jogador onde os riscos aparecem
@@ -12,41 +12,43 @@ const BEHIND = 8; // reciclados quando ficam atrás da câmera
 const INNER = BALANCE.track.laneWidth * 1.5 + 0.5;
 
 export class SpeedLines {
-  readonly root = new THREE.Group();
-  private lines: THREE.Mesh[] = [];
+  readonly root: THREE.InstancedMesh;
+  /** Posições dos riscos (x, y, z), para testes e para reciclar. */
+  readonly positions: THREE.Vector3[] = [];
   private material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false });
+  private matrix = new THREE.Matrix4();
+  private scale = new THREE.Vector3(1, 1, 1);
+  private quat = new THREE.Quaternion();
 
   constructor() {
-    const geo = new THREE.BoxGeometry(0.035, 0.035, 1);
-    for (let i = 0; i < COUNT; i++) {
-      const m = new THREE.Mesh(geo, this.material);
-      this.lines.push(m);
-      this.root.add(m);
-    }
+    this.root = new THREE.InstancedMesh(new THREE.BoxGeometry(0.035, 0.035, 1), this.material, COUNT);
+    this.root.frustumCulled = false; // os riscos acompanham o jogador; a caixa fixa não serviria
+    for (let i = 0; i < COUNT; i++) this.positions.push(new THREE.Vector3());
     this.reset(0);
   }
 
-  private place(m: THREE.Mesh, z: number): void {
+  private place(v: THREE.Vector3, z: number): void {
     const side = Math.random() < 0.5 ? -1 : 1;
-    m.position.set(side * (INNER + Math.random() * 4.5), 0.6 + Math.random() * 5, z);
+    v.set(side * (INNER + Math.random() * 4.5), 0.6 + Math.random() * 5, z);
   }
 
   /** Espalha todos os riscos à frente da posição dada (início de cada partida). */
   reset(playerZ: number): void {
-    for (const m of this.lines) this.place(m, playerZ + Math.random() * AHEAD);
+    for (const v of this.positions) this.place(v, playerZ + Math.random() * AHEAD);
   }
 
   /** `intensity` 0..1 (0 = parado/lento, 1 = velocidade máxima). */
   update(playerZ: number, intensity: number): void {
     // Recicla mesmo com o efeito escondido, para não reaparecerem todos juntos depois.
-    for (const m of this.lines) {
-      if (m.position.z < playerZ - BEHIND) this.place(m, playerZ + AHEAD * (0.5 + Math.random() * 0.5));
+    for (const v of this.positions) {
+      if (v.z < playerZ - BEHIND) this.place(v, playerZ + AHEAD * (0.5 + Math.random() * 0.5));
     }
     const visible = intensity > 0.05;
     this.root.visible = visible;
     if (!visible) return;
     this.material.opacity = Math.min(0.55, intensity * 0.6);
-    const length = 1 + intensity * 5;
-    for (const m of this.lines) m.scale.z = length;
+    this.scale.z = 1 + intensity * 5;
+    this.positions.forEach((v, i) => this.root.setMatrixAt(i, this.matrix.compose(v, this.quat, this.scale)));
+    this.root.instanceMatrix.needsUpdate = true;
   }
 }

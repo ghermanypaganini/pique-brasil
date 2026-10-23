@@ -94,7 +94,7 @@ export default defineConfig({
               ],
             },
             workbox: {
-              globPatterns: ['**/*.{js,css,html,png,svg,webp,json}'],
+              globPatterns: ['**/*.{js,css,html,png,svg,webp,json,glb}'],
               // Métricas só são baixadas por quem as usa (carregadas sob demanda, quando ligadas).
               globIgnores: ['**/telemetry-*.js'],
               // Patrocinadores e API sempre da rede (o jogo funciona offline sem eles).

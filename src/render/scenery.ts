@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { BALANCE } from '../data/balance';
-import { canvasTexture, disposeTree, toon } from './materials';
+import { bakeRig, canvasTexture, disposeTree, toon } from './materials';
+import { model } from './models';
 import { makeOlindaDancer } from './props';
 
 // Dois cenários que se alternam, com um túnel na troca:
@@ -111,6 +112,12 @@ function buildingMat(color: number): THREE.MeshToonMaterial {
 // ── Peças do cenário ──────────────────────────────────────────────
 
 function palm(x: number, z: number): THREE.Group {
+  const ai = model('palmeira', [null, 6.5 + rnd() * 1.5, null]);
+  if (ai) {
+    ai.position.set(x, 0, z);
+    ai.rotation.y = rnd() * Math.PI * 2;
+    return ai;
+  }
   const g = new THREE.Group();
   const lean = (rnd() - 0.5) * 0.3;
   const trunk = part(unitCyl, 0x8d6e63, 0.18, 6, 0.18, 0, 3, 0);
@@ -146,6 +153,13 @@ function sobrado(x: number, z: number, side: 1 | -1): { obj: THREE.Group; depth:
     }
   }
   g.add(part(unitBox, 0xffffff, w + 0.3, 0.3, d + 0.3, 0, h, 0)); // cornija
+  // Sacadinhas de ferro no 1º andar, com vasos de planta
+  for (let fz = -d / 2 + 1.2; fz < d / 2 - 0.8; fz += 1.8) {
+    const fx = -side * (w / 2 + 0.35);
+    g.add(part(unitBox, 0xffffff, 0.7, 0.1, 1.3, fx, 3.4, fz));
+    g.add(part(unitBox, 0x263238, 0.05, 0.5, 1.3, fx - side * 0.33, 3.7, fz));
+    if (rnd() < 0.6) g.add(part(unitSphere, 0x43a047, 0.22, 0.2, 0.22, fx, 3.6, fz + 0.4));
+  }
   const roof = part(unitBox, 0xbf5b3b, w * 0.75, 1.4, d, 0, h + 0.7, 0);
   roof.rotation.z = Math.PI / 4;
   roof.scale.set(w * 0.55, w * 0.55, d);
@@ -164,11 +178,70 @@ function predio(x: number, z: number, side: 1 | -1): { obj: THREE.Group; depth: 
   m.position.y = h / 2;
   g.add(m);
   g.add(part(unitBox, 0xeeeeee, w + 0.4, 0.4, d + 0.4, 0, h, 0));
+  const face = -side * (w / 2); // fachada virada para a pista
+  // Térreo comercial: porta de aço e toldo listrado
+  const awning = pick(CARNIVAL);
+  g.add(part(unitBox, 0x90a4ae, 0.1, 2.4, d * 0.7, face - side * 0.05, 1.2, 0));
+  const tent = part(unitBox, awning, 1.2, 0.12, d * 0.8, face - side * 0.6, 2.9, 0);
+  tent.rotation.z = side * 0.35;
+  g.add(tent);
+  // Sacadas a cada andar e aparelhos de ar-condicionado pendurados
+  for (let fy = 5; fy < h - 1.5; fy += 3) {
+    g.add(part(unitBox, 0xf5f5f5, 0.6, 0.12, d * 0.85, face - side * 0.3, fy, 0));
+    g.add(part(unitBox, 0xe0e0e0, 0.05, 0.6, d * 0.85, face - side * 0.6, fy + 0.3, 0));
+    if (rnd() < 0.7) g.add(part(unitBox, 0xeceff1, 0.45, 0.4, 0.6, face - side * 0.25, fy + 1.4, (rnd() - 0.5) * d * 0.6));
+  }
+  // Caixa-d'água e antena no telhado
+  g.add(part(unitCyl, 0x4fc3f7, 0.9, 1.2, 0.9, (rnd() - 0.5) * w * 0.4, h + 0.8, (rnd() - 0.5) * d * 0.4));
+  g.add(part(unitCyl, 0x9e9e9e, 0.03, 2, 0.03, w * 0.2, h + 1.2, d * 0.2));
   g.position.set(x + side * (w / 2), 0, z + d / 2);
   return { obj: g, depth: d };
 }
 
+/** Orelhão (telefone público laranja) — ícone das calçadas brasileiras. */
+function orelhao(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  g.add(part(unitCyl, 0x9e9e9e, 0.07, 1.6, 0.07, 0, 0.8, 0));
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xff8f00));
+  shell.position.y = 1.55;
+  shell.scale.set(1, 1.3, 1);
+  g.add(shell);
+  g.add(part(unitBox, 0x37474f, 0.3, 0.45, 0.18, 0.2, 1.75, 0));
+  g.position.set(x, 0, z);
+  return g;
+}
+
+/** Banco de praça e lixeira laranja. */
+function banco(x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  g.add(part(unitBox, 0x8d6e63, 0.5, 0.1, 1.6, 0, 0.5, 0));
+  g.add(part(unitBox, 0x8d6e63, 0.1, 0.45, 1.6, -0.25, 0.8, 0));
+  for (const dz of [-0.65, 0.65]) g.add(part(unitBox, 0x424242, 0.45, 0.5, 0.08, 0, 0.25, dz));
+  g.add(part(unitCyl, 0xff6f00, 0.25, 0.75, 0.25, 0.1, 0.38, 1.4));
+  g.position.set(x, 0, z);
+  return g;
+}
+
+/** Cadeiras de praia e cooler embaixo de um guarda-sol. */
+function beachSet(x: number, z: number): THREE.Group {
+  const g = umbrella(0, 0);
+  for (const dz of [-0.7, 0.7]) {
+    const chair = part(unitBox, pick(CARNIVAL), 0.6, 0.06, 1.3, 0.6, 0.35, dz);
+    chair.rotation.z = 0.35;
+    g.add(chair);
+  }
+  g.add(part(unitBox, 0x1e88e5, 0.45, 0.35, 0.35, -0.6, 0.18, 0));
+  g.position.set(x, 0, z);
+  return g;
+}
+
 function quiosque(x: number, z: number): THREE.Group {
+  const ai = model('quiosque', [null, 3.2, null]);
+  if (ai) {
+    ai.position.set(x, 0, z);
+    ai.rotation.y = -Math.PI / 2; // balcão virado para a pista (que fica em -x)
+    return ai;
+  }
   const g = new THREE.Group();
   g.add(part(unitBox, 0xffffff, 2.2, 2.2, 2.2, 0, 1.1, 0));
   g.add(part(unitBox, pick(CARNIVAL), 2.6, 0.3, 2.6, 0, 2.4, 0));
@@ -209,6 +282,12 @@ function bandeirinhas(z: number): THREE.Group {
 
 /** Carro alegórico estacionado na areia (decoração). */
 function floatDecor(x: number, z: number): THREE.Group {
+  const ai = model('alegorico', [null, 6.5, null]);
+  if (ai) {
+    ai.position.set(x, 0, z);
+    ai.rotation.y = x > 0 ? -Math.PI / 2 + 0.4 : Math.PI / 2 - 0.4; // de frente para a pista, um pouco virado para o jogador
+    return ai;
+  }
   const g = new THREE.Group();
   const c = pick(CARNIVAL);
   g.add(part(unitBox, c, 4, 2, 9, 0, 1.4, 0));
@@ -460,6 +539,20 @@ interface Dancer {
   phase: number;
 }
 
+/**
+ * Funde as peças de cor sólida do segmento (centenas de peças, poucas chamadas de desenho).
+ * O chão fica numa malha à parte que só recebe sombra: mar e gramados enormes projetando sombra
+ * entrariam inteiros no mapa de sombra a cada quadro.
+ */
+function bakeSegment(g: THREE.Group, castProps: boolean): void {
+  const ground = new THREE.Group();
+  for (const c of [...g.children]) if (c.userData.ground) ground.add(c);
+  bakeRig([ground], 0, { cast: false, receive: true });
+  ground.userData.keep = true; // já fundido: fica fora da segunda fusão
+  g.add(ground);
+  bakeRig([g], 0, { cast: castProps, receive: true });
+}
+
 export class Scenery {
   readonly root = new THREE.Group();
   private horizons: Record<Biome, THREE.Group> = { rio: rioBackdrop(), brasilia: brasiliaBackdrop() };
@@ -469,6 +562,9 @@ export class Scenery {
   private texMats: { asphalt: THREE.MeshToonMaterial; calcadao: THREE.MeshToonMaterial };
 
   constructor() {
+    // Horizonte numa malha só por cenário (dezenas de casinhas e prédios distantes).
+    const far = new THREE.MeshBasicMaterial({ vertexColors: true, fog: false });
+    for (const b of BIOMES) bakeRig([this.horizons[b]], 0, undefined, far);
     this.root.add(this.horizons.rio, this.horizons.brasilia);
     const textured = (map: THREE.Texture) => {
       const m = new THREE.MeshToonMaterial({ color: 0xffffff, map });
@@ -536,6 +632,8 @@ export class Scenery {
       this.planes.set(w, geo);
     }
     const m = new THREE.Mesh(geo, mat);
+    m.receiveShadow = true;
+    m.userData.ground = true;
     m.rotation.x = -Math.PI / 2;
     m.position.set(x, y, z0 + SEG / 2);
     g.add(m);
@@ -555,6 +653,7 @@ export class Scenery {
     if (isTunnel(i)) {
       const k = i % BIOME_SEGS;
       g.add(tunnelSegment(z0, k === BIOME_SEGS - 1, k === 0));
+      bakeSegment(g, false);
       return g;
     }
     if (segBiome(i) === 'brasilia') this.buildBrasilia(g, i, z0);
@@ -562,6 +661,7 @@ export class Scenery {
 
     // Bandeirinhas de festa junina (quermesse) a cada 3 segmentos, nos dois cenários
     if (i % 3 === 0 && i > 0) g.add(bandeirinhas(z0 + 18));
+    bakeSegment(g, true);
     return g;
   }
 
@@ -580,16 +680,19 @@ export class Scenery {
       g.add(b.obj);
       z += b.depth + 0.3;
     }
-    // Postes com fios
+    // Postes com fios, bancos, lixeiras e um orelhão de vez em quando
     for (let pz = z0 + 5; pz < z0 + SEG; pz += 20) {
       g.add(part(unitCyl, 0x757575, 0.1, 6, 0.1, -ROAD_HALF - 0.6, 3, pz));
       g.add(part(unitBox, 0x757575, 1.4, 0.1, 0.1, -ROAD_HALF, 6, pz));
+      g.add(part(unitBox, 0xfff59d, 0.4, 0.12, 0.25, -ROAD_HALF + 0.6, 5.92, pz));
+      g.add(banco(-ROAD_HALF - 3.6, pz + 8));
     }
+    if (i % 2 === 0) g.add(orelhao(-ROAD_HALF - 1.2, z0 + 14));
 
     // Lado direito: palmeiras no calçadão, quiosques e guarda-sóis na areia
     for (let pz = z0 + 3 + rnd() * 4; pz < z0 + SEG; pz += 9 + rnd() * 5) g.add(palm(ROAD_HALF + 5.4, pz));
     if (rnd() < 0.6) g.add(quiosque(ROAD_HALF + 9, z0 + 10 + rnd() * 20));
-    for (let k = 0; k < 4; k++) g.add(umbrella(ROAD_HALF + 12 + rnd() * 14, z0 + rnd() * SEG));
+    for (let k = 0; k < 4; k++) g.add(k < 2 ? beachSet(ROAD_HALF + 12 + rnd() * 14, z0 + rnd() * SEG) : umbrella(ROAD_HALF + 12 + rnd() * 14, z0 + rnd() * SEG));
     if (i % 5 === 2) g.add(floatDecor(ROAD_HALF + 20, z0 + 20));
 
     // Trecho de carnaval: bonecos de Olinda dançando nas calçadas
@@ -602,6 +705,7 @@ export class Scenery {
       ] as const) {
         const d = makeOlindaDancer(i * 7 + list.length);
         const holder = new THREE.Group(); // vira o boneco para o jogador; a dança mexe só no boneco
+        holder.userData.keep = true; // animado: fica fora da fusão do segmento
         holder.add(d.root);
         holder.position.set(x, 0.15, z0 + dz);
         holder.rotation.y = Math.PI;

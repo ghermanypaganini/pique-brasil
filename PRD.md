@@ -637,6 +637,15 @@ Tudo da seção 15.1, incluindo os itens de corte de emergência (Vorcano, Cuca 
 - Só no site e no itch.io; nos portais (Poki/CrazyGames têm métricas próprias e regras contra rastreamento de terceiros) o código nem entra no pacote. Desligado em desenvolvimento.
 - Carregado depois do jogo abrir (não afeta o carregamento): +52 KB (PostHog) e +31 KB (Sentry) compactados, usando as versões mínimas dos dois SDKs.
 
-### 17.3 Próximos blocos
-Meta-jogo (loja, skins, upgrades, missões, desafio diário) · Patrocínio extra (outdoors, power-up patrocinado) · Acessibilidade restante · Arte 3D por IA.
+### 17.3 Bloco 3D ✅ (híbrido: personagens por código, objetos por IA)
+- **Personagens (código):** rosto cartoon (olhos com pupila e brilho, sobrancelhas, boca, queixo), mãos com polegar, sapatos com sola, quadril, pescoço e tronco arredondado. Lule com lapelas, camisa, gravata, botões, lenço, barra do paletó, punhos e cabelo branco na nuca. Bolsonero com camisa amarela de gola e punhos verdes, botões, cinto, topete com risca e relógio preto. Multidão com tipos de corpo, bermudas, rabo de cavalo, bonés, óculos escuros e boca gritando. Corrida com tronco girando e inclinado. As peças são fundidas por parte do corpo (~40 peças → ~12 chamadas de desenho por personagem).
+- **Modelos de IA (Tripo via Higgsfield, 35 créditos):** ônibus (dois em sequência = articulado), táxi carioca, banca de jornal, bumba-meu-boi, carro alegórico decorativo, quiosque e palmeiras. Otimizados de 6,6 MB para 1 MB; versão por código como reserva. Detalhes em `public/models/LEIA-ME.md`.
+- **Cenário do Rio:** prédios com sacadas, ar-condicionado, caixa-d'água e toldos de loja; sobrados com sacadinhas e vasos; bancos, lixeiras, orelhões, luminárias; cadeiras de praia e coolers.
+- **Luz e acabamento:** céu em degradê com nuvens (cores por cenário), sombras reais perto do jogador, poeira nos passos e aterrissagens, brilho ao pegar dinheiro, estrelinhas no tropeço.
+- **Desempenho:** peças fixas de cada trecho fundidas numa malha; moedas e linhas de velocidade desenhadas em lote; horizonte e nuvens fundidos. Chamadas de desenho por quadro caíram de ~520 para ~290 com muito mais detalhe.
+- Correções: boneco de Olinda (obstáculo) agora de frente para o jogador; topo do chapéu do Lule.
+- Robustez (code review): o carregamento espera os modelos no máximo 3 s (rede ruim abre com as versões por código; os modelos entram nos próximos objetos); círculo de sombra sob o jogador e tetos recebendo sombra (mira do pulo); boi e táxi do tamanho da área de colisão; contorno sem quinas abertas; chão sem projetar sombra; partículas em lote; sombra sem tremer.
+
+### 17.4 Próximos blocos
+Meta-jogo (loja, skins, upgrades, missões, desafio diário) · Patrocínio extra (outdoors, power-up patrocinado) · Acessibilidade restante.
 

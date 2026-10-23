@@ -1,20 +1,50 @@
 import * as THREE from 'three';
 import { BALANCE, laneX } from '../data/balance';
 import type { Game } from '../systems/game';
-import type { PickupKind } from '../systems/types';
+import type { GameEvent, PickupKind } from '../systems/types';
 import { isMoney } from '../systems/types';
 import { animateRun, makeChaser, makeCuca, makeRunner, makeSaci, type Rig } from './characters';
-import { disposeTree } from './materials';
+import { bakeRig, disposeTree } from './materials';
+import { modelsVersion } from './models';
 import { makeArmoredTruck, makeJudgeStand, makeObstacleView, makeOfficialCar, makePickupMesh, type ObstacleView } from './props';
 import { Scenery, biomeAt, brasiliaAmount } from './scenery';
+import { Particles } from './particles';
+import { Sky } from './sky';
 import { SpeedLines } from './speedlines';
 
 const LW = BALANCE.track.laneWidth;
 
-// Céu e luz de cada cenário: sol forte no Rio, fim de tarde alaranjado em Brasília.
-const SKY = { rio: new THREE.Color(0x8fd3ff), brasilia: new THREE.Color(0xffb27a) };
+// Luz de cada cenário: sol forte no Rio, fim de tarde alaranjado em Brasília (o céu fica em sky.ts).
 const SUN = { rio: new THREE.Color(0xfff4e0), brasilia: new THREE.Color(0xffc08a) };
 const HEMI = { rio: new THREE.Color(0xffffff), brasilia: new THREE.Color(0xffe2c4) };
+
+/**
+ * Liga a projeção de sombra nas malhas do objeto (o contorno não precisa projetar).
+ * `receive`: também recebe sombra (tetos de ônibus e carro alegórico, onde o jogador corre).
+ */
+function castShadows<T extends THREE.Object3D | { root: THREE.Object3D }>(obj: T, receive = false): T {
+  const root = obj instanceof THREE.Object3D ? obj : obj.root;
+  root.traverse((o) => {
+    if (o instanceof THREE.Mesh && !o.userData.outline) {
+      o.castShadow = true;
+      o.receiveShadow = receive;
+    }
+  });
+  return obj;
+}
+
+const MAX_COINS = 300;
+
+/** Todas as moedas numa chamada de desenho (são a maioria dos coletáveis na tela). */
+function makeCoinInstances(): THREE.InstancedMesh {
+  const coin = makePickupMesh('coin');
+  bakeRig([coin], 0);
+  const merged = coin.children.find((c): c is THREE.Mesh => c instanceof THREE.Mesh)!;
+  const inst = new THREE.InstancedMesh(merged.geometry, merged.material as THREE.Material, MAX_COINS);
+  inst.frustumCulled = false; // as moedas se espalham pela pista; a caixa da geometria não serve
+  inst.count = 0;
+  return inst;
+}
 
 /** Pool simples por chave: reaproveita objetos em vez de criar/destruir (evita travadas de GC). */
 class Pool<T extends { root: THREE.Object3D }> {
@@ -30,6 +60,11 @@ class Pool<T extends { root: THREE.Object3D }> {
     item.root.visible = false;
     if (!this.free.has(key)) this.free.set(key, []);
     this.free.get(key)!.push(item);
+  }
+  /** Descarta de vez (versão por código, feita antes de os modelos de IA carregarem). */
+  discard(item: T) {
+    this.parent.remove(item.root);
+    disposeTree(item.root);
   }
 }
 
@@ -62,7 +97,6 @@ export class SceneRenderer {
   private crowd: Rig[] = [];
   private crowdCloths: (THREE.Object3D | undefined)[] = [];
   private crowdCount = 0;
-  private shadow: THREE.Mesh;
 
   // Efeitos dos power-ups e eventos
   private officialCar = makeOfficialCar();
@@ -88,6 +122,16 @@ export class SceneRenderer {
   private runPhase = 0;
   private flashes = false; // "reduzir flashes": luzes fixas em vez de piscando
   private time = 0;
+  private coins = makeCoinInstances();
+  private coinMatrix = new THREE.Object3D();
+  private sky = new Sky();
+  private particles = new Particles();
+  private dustT = 0; // próximo poeirinha dos passos
+  private sunOffset = new THREE.Vector3(-6, 14, -5);
+  private sunBasis = new THREE.Matrix4().lookAt(new THREE.Vector3(-6, 14, -5), new THREE.Vector3(), new THREE.Vector3(0, 1, 0));
+  private sunBasisInv = this.sunBasis.clone().transpose(); // rotação pura: a inversa é a transposta
+  private snap = new THREE.Vector3();
+  private blob: THREE.Mesh; // marca onde o jogador vai cair (a sombra do sol fica deslocada no pulo)
   private camPos = new THREE.Vector3(0, 4, -6.5);
   private camTarget = new THREE.Vector3();
 
@@ -95,25 +139,40 @@ export class SceneRenderer {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.scene.background = new THREE.Color(0x8fd3ff);
-    this.scene.fog = new THREE.Fog(0x8fd3ff, 80, 200);
+    // Sombras de verdade só numa caixa em volta do jogador (barato e o que importa na tela).
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.scene.fog = new THREE.Fog(0xc4ecff, 80, 200);
+    this.scene.add(this.sky.root);
 
     this.hemi = new THREE.HemisphereLight(0xffffff, 0xb08d6e, 1.5);
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff4e0, 1.8);
-    this.sun.position.set(-5, 12, -4);
-    this.scene.add(this.sun);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(1024, 1024);
+    this.sun.shadow.bias = -0.0006;
+    this.sun.shadow.normalBias = 0.03;
+    const sc = this.sun.shadow.camera;
+    sc.left = -14;
+    sc.right = 14;
+    sc.top = 26;
+    sc.bottom = -14;
+    sc.near = 1;
+    sc.far = 60;
+    this.scene.add(this.sun, this.sun.target);
     this.scene.add(this.world);
     this.world.add(this.scenery.root, this.speedLines.root);
 
     this.obstaclePool = new Pool(this.world);
     this.pickupPool = new Pool(this.world);
 
-    this.shadow = new THREE.Mesh(
-      new THREE.CircleGeometry(0.5, 16),
-      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false }),
+
+    this.blob = new THREE.Mesh(
+      new THREE.CircleGeometry(0.45, 16),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }),
     );
-    this.shadow.rotation.x = -Math.PI / 2;
+    this.blob.rotation.x = -Math.PI / 2;
+    this.world.add(this.blob);
 
     this.whirl = new THREE.Mesh(
       new THREE.CylinderGeometry(1.1, 0.35, 2.4, 20, 4, true),
@@ -136,13 +195,16 @@ export class SceneRenderer {
     this.saci.scale.setScalar(0.9);
     this.cuca.scale.setScalar(1.3);
     const fx = [this.officialCar, this.habeasPaper, this.whirl, this.saci, this.truck.root, this.cuca, this.judge.root, this.steam, this.pixOrbit];
-    this.world.add(this.shadow, ...fx);
+    this.world.add(this.particles.root, this.coins, ...fx);
+    for (const o of [this.officialCar, this.truck.root, this.judge.root, this.saci]) castShadows(o);
     for (const o of fx) o.visible = false;
   }
 
   setCharacter(game: Game): void {
     if (this.runner) this.removeAndDispose(this.runner.root);
     this.runner = makeRunner(game.character);
+    castShadows(this.runner.root);
+    this.particles.clear();
     this.world.add(this.runner.root);
     // Molas da Sandália: uma em cada pé, escondidas até pegar o power-up.
     this.springs = [this.runner.legL, this.runner.legR].map((leg) => {
@@ -161,7 +223,7 @@ export class SceneRenderer {
     this.crowd = [];
     this.crowdCloths = [];
     this.crowdCount = 0;
-    for (const e of this.obstacles.values()) this.obstaclePool.release(e.key, e.view);
+    for (const e of this.obstacles.values()) this.releaseObstacle(e);
     for (const e of this.pickups.values()) this.pickupPool.release(e.key, e.view);
     this.obstacles.clear();
     this.pickups.clear();
@@ -189,6 +251,7 @@ export class SceneRenderer {
     this.crowd = Array.from({ length: n }, (_, i) => makeChaser(side, i));
     for (const r of this.crowd) {
       r.root.scale.multiplyScalar(BALANCE.crowd.scale);
+      castShadows(r.root);
       this.world.add(r.root);
     }
     this.crowdCloths = this.crowd.map((r) => r.root.getObjectByName('cloth'));
@@ -204,8 +267,9 @@ export class SceneRenderer {
         // A malha depende do tipo, da variante e do tamanho; só reaproveita quando tudo bate.
         // Em Brasília, os carros vindo de frente são sedãs oficiais pretos.
         const biome = o.kind === 'vehicle' ? biomeAt(o.z) : 'rio';
-        const key = `${o.kind}:${o.variant}:${o.length.toFixed(1)}:${biome}`;
-        e = { key, view: this.obstaclePool.get(key, () => makeObstacleView(o, biome)), knockT: 0 };
+        // A versão dos modelos entra na chave: o que foi montado por código antes de eles carregarem não volta.
+        const key = `${o.kind}:${o.variant}:${o.length.toFixed(1)}:${biome}:${modelsVersion()}`;
+        e = { key, view: this.obstaclePool.get(key, () => castShadows(makeObstacleView(o, biome), true)), knockT: 0 };
         e.view.root.rotation.set(0, 0, 0);
         this.obstacles.set(o.id, e);
       }
@@ -245,10 +309,15 @@ export class SceneRenderer {
     }
     for (const [id, e] of this.obstacles) {
       if (!seen.has(id)) {
-        this.obstaclePool.release(e.key, e.view);
+        this.releaseObstacle(e);
         this.obstacles.delete(id);
       }
     }
+  }
+
+  private releaseObstacle(e: ObstacleEntry): void {
+    if (e.key.endsWith(`:${modelsVersion()}`)) this.obstaclePool.release(e.key, e.view);
+    else this.obstaclePool.discard(e.view);
   }
 
   private syncPickups(game: Game): void {
@@ -256,15 +325,8 @@ export class SceneRenderer {
     const spin = this.time * 4;
     const p = game.player;
     const magnet = p.powers.saci > 0;
+    let coins = 0;
     for (const k of game.pickups) {
-      seen.add(k.id);
-      let e = this.pickups.get(k.id);
-      if (!e) {
-        const kind: PickupKind = k.kind;
-        e = { key: kind, view: this.pickupPool.get(kind, () => ({ root: makePickupMesh(kind) })) };
-        this.pickups.set(k.id, e);
-      }
-      const obj = e.view.root;
       let x = laneX(k.lane);
       let y = k.y + Math.sin(spin + k.z) * 0.08;
       // Redemoinho do Saci: o dinheiro próximo voa em direção ao jogador.
@@ -276,14 +338,33 @@ export class SceneRenderer {
           y += (p.y + 1 - y) * t;
         }
       }
+      if (k.kind === 'coin') {
+        if (coins >= MAX_COINS) continue;
+        const m = this.coinMatrix;
+        m.position.set(x, y, k.z);
+        m.rotation.set(0, spin, 0);
+        m.updateMatrix();
+        this.coins.setMatrixAt(coins++, m.matrix);
+        continue;
+      }
+      seen.add(k.id);
+      let e = this.pickups.get(k.id);
+      if (!e) {
+        const kind: PickupKind = k.kind;
+        e = { key: kind, view: this.pickupPool.get(kind, () => ({ root: makePickupMesh(kind) })) };
+        this.pickups.set(k.id, e);
+      }
+      const obj = e.view.root;
       obj.position.set(x, y, k.z);
-      obj.rotation.y = k.kind === 'coin' ? spin : Math.sin(spin * 0.5 + k.z) * 0.5;
+      obj.rotation.y = Math.sin(spin * 0.5 + k.z) * 0.5;
       const aura = obj.getObjectByName('aura');
       if (aura) {
         aura.rotation.z = spin;
         aura.scale.setScalar(1 + Math.sin(spin * 2) * 0.1);
       }
     }
+    this.coins.count = coins;
+    this.coins.instanceMatrix.needsUpdate = true;
     for (const [id, e] of this.pickups) {
       if (!seen.has(id)) {
         this.pickupPool.release(e.key, e.view);
@@ -301,6 +382,13 @@ export class SceneRenderer {
     this.ensureCrowd(game, width);
     this.scenery.update(p.z, this.time);
     this.updateSky(p.z);
+    this.particles.update(dt);
+    // Poeirinha dos passos (mais forte quanto mais rápido)
+    this.dustT -= dt;
+    if (game.phase === 'running' && settings.active && p.grounded && p.roll === 0 && p.powers.immunity === 0 && this.dustT <= 0) {
+      this.dustT = 0.09;
+      this.particles.emit({ x: p.x, y: p.y + 0.05, z: p.z - 0.3 }, 1, { color: 0xe8dcc8, size: 0.06, speed: 0.5, up: 0.5, life: 0.25 });
+    }
     this.syncObstacles(game, dt);
     this.syncPickups(game);
 
@@ -366,21 +454,30 @@ export class SceneRenderer {
     this.renderPowers(game);
 
     const ground = game.groundHeight;
-    this.shadow.position.set(p.x, 0.03 + ground, p.z);
-    const s = Math.max(0.4, 1 - (p.y - ground) * 0.2);
-    this.shadow.scale.set(s, s, s);
+    this.blob.position.set(p.x, 0.04 + ground, p.z);
+    this.blob.scale.setScalar(Math.max(0.5, 1 - (p.y - ground) * 0.15));
+
+    // A luz do sol acompanha o jogador (a caixa de sombra vai junto), em passos de um texel do
+    // mapa de sombra: sem isso as bordas das sombras tremem enquanto corre.
+    const sc = this.sun.shadow.camera;
+    const texel = (sc.right - sc.left) / this.sun.shadow.mapSize.x;
+    const v = this.snap.set(p.x * 0.5, 0, p.z + 8).applyMatrix4(this.sunBasisInv);
+    v.x = Math.round(v.x / texel) * texel;
+    v.y = Math.round(v.y / texel) * texel;
+    v.applyMatrix4(this.sunBasis);
+    this.sun.target.position.copy(v);
+    this.sun.position.copy(v).add(this.sunOffset);
 
     this.renderCrowd(game, running);
     this.renderEvents(game, dt);
     this.renderCamera(game, dt, settings, running);
+    this.sky.update(this.camera, brasiliaAmount(p.z), this.time);
+    (this.scene.fog as THREE.Fog).color.copy(this.sky.horizon);
     this.renderer.render(this.scene, this.camera);
   }
 
   private updateSky(z: number): void {
     const t = brasiliaAmount(z);
-    const bg = this.scene.background as THREE.Color;
-    bg.copy(SKY.rio).lerp(SKY.brasilia, t);
-    (this.scene.fog as THREE.Fog).color.copy(bg);
     this.sun.color.copy(SUN.rio).lerp(SUN.brasilia, t);
     this.hemi.color.copy(HEMI.rio).lerp(HEMI.brasilia, t);
   }
@@ -414,6 +511,22 @@ export class SceneRenderer {
         bill.rotation.y = -a;
         bill.visible = !ending;
       });
+    }
+  }
+
+  /** Partículas dos acontecimentos do jogo (chamado pelo main ao drenar os eventos). */
+  onEvent(e: GameEvent, game: Game): void {
+    const p = game.player;
+    const feet = { x: p.x, y: p.y + 0.1, z: p.z };
+    const chest = { x: p.x, y: p.y + 1.2, z: p.z + 0.3 };
+    if (e.type === 'land') this.particles.emit(feet, 6, { color: 0xe8dcc8, size: 0.13, speed: 2.5, up: 0.8, life: 0.45 });
+    else if (e.type === 'stumble') {
+      this.particles.emit(feet, 8, { color: 0xd7ccc8, size: 0.16, speed: 3, up: 1.2, life: 0.5 });
+      this.particles.emit({ x: p.x, y: p.y + 2.1, z: p.z }, 5, { color: 0xffeb3b, size: 0.08, speed: 1.5, up: 1.5, life: 0.7, grow: 0 }); // estrelinhas
+    } else if (e.type === 'pickup') {
+      const color = e.kind === 'coin' ? 0xffd54f : e.kind === 'bill' || e.kind === 'case' ? 0xa5d6a7 : 0xffffff;
+      const n = e.kind === 'case' ? 10 : e.kind === 'coin' ? 3 : 6;
+      this.particles.emit(chest, n, { color, size: 0.07, speed: 2.5, up: 2, life: 0.4, grow: -1, gravity: 6 });
     }
   }
 

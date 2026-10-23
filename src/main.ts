@@ -2,6 +2,7 @@ import './style.css';
 import { bindInput } from './core/input';
 import { startLoop } from './core/loop';
 import { renderPortraits } from './render/portrait';
+import { loadModels } from './render/models';
 import { SceneRenderer } from './render/scene';
 import { audio, type Sfx } from './services/audio';
 import { initPortal, portalGameplay, portalLoadingFinished } from './services/portal';
@@ -27,6 +28,9 @@ const save = loadSave();
 startErrorReporting(save.analytics);
 const renderer = new SceneRenderer(canvas);
 const portalReady = initPortal();
+// Modelos 3D (IA) carregam durante a tela de carregamento, esperando no máximo 3 s: numa rede ruim
+// o jogo abre com as versões por código, e os modelos que chegarem depois entram nos próximos objetos.
+const modelsReady = Promise.race([loadModels(), new Promise<void>((r) => setTimeout(r, 3000))]);
 
 let screen: Screen = 'menu';
 let finished = false; // dinheiro e recorde da partida atual já foram salvos
@@ -251,6 +255,7 @@ const SFX: Partial<Record<GameEvent['type'], Sfx>> = {
 };
 
 function handleEvent(e: GameEvent) {
+  renderer.onEvent(e, game);
   if (e.type === 'pickup') {
     if (isMoney(e.kind)) audio.play(e.kind);
     else {
@@ -333,7 +338,7 @@ setScreen(save.satireAccepted ? 'menu' : 'satire');
 void flushQueue();
 
 // Tela de carregamento (patrocínio, mínimo 4 s) por cima do menu até o jogo estar pronto.
-void runLoadingScreen(language, portalReady).then((readyMs) => {
+void runLoadingScreen(language, Promise.all([portalReady, modelsReady]).then(() => undefined)).then((readyMs) => {
   portalLoadingFinished();
   startAnalytics(save.analytics);
   const languageSwitch = session(LANGUAGE_SWITCH_KEY) === '1';
@@ -362,6 +367,11 @@ if (import.meta.env.DEV) {
     },
     get screen() {
       return screen;
+    },
+    /** Chamadas de desenho e triângulos do último quadro (custo de GPU). */
+    renderInfo() {
+      const r = renderer.renderer.info.render;
+      return { calls: r.calls, triangles: r.triangles };
     },
     /** Posição do jogador na tela (0..1, esquerda→direita). */
     playerScreenX() {

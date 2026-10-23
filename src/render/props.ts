@@ -4,6 +4,7 @@ import type { Obstacle, PickupKind } from '../systems/types';
 import { isMoney } from '../systems/types';
 import { makeCareca, makeDrunk, makePoliceman, makeVorcano, type Rig } from './characters';
 import { addOutline, canvasTexture, toon } from './materials';
+import { model } from './models';
 
 const OB = BALANCE.obstacles;
 
@@ -120,6 +121,20 @@ function boi(g: THREE.Group, seed: number): THREE.Object3D {
   body.position.z = OB.boi.length / 2;
   g.add(body);
   return body;
+}
+
+/** Ônibus articulado com dois modelos de IA (um só ficaria esticado demais nos 10 m do obstáculo). */
+function busModel(g: THREE.Group, length: number, height: number): boolean {
+  const half = length / 2;
+  for (let i = 0; i < 2; i++) {
+    const m = model('onibus', [2.1, height, half - 0.15]);
+    if (!m) return false;
+    m.position.z = half * i + half / 2;
+    g.add(m);
+  }
+  // Sanfona entre as duas partes
+  g.add(box(1.8, height - 0.6, 0.4, 0x37474f, 0.3 + (height - 0.6) / 2, half));
+  return true;
 }
 
 /** Carro alegórico: plataforma colorida onde dá para correr por cima, com esculturas nas laterais. */
@@ -240,7 +255,11 @@ export function makeObstacleView(o: Obstacle, biome: 'rio' | 'brasilia' = 'rio')
       break;
     case 'high':
       if (o.variant === 'olinda') {
-        view.spin = olinda(g, seed);
+        const facing = new THREE.Group(); // rosto virado para o jogador (que vem de -z)
+        facing.rotation.y = Math.PI;
+        facing.position.z = 0.4;
+        g.add(facing);
+        view.spin = olinda(facing, seed);
       } else {
         for (const x of [-1.0, 1.0]) g.add(box(0.12, OB.high.top, 0.12, 0x666666, OB.high.top / 2, 0.2, x));
         const h = OB.high.top - OB.high.bottom;
@@ -251,6 +270,8 @@ export function makeObstacleView(o: Obstacle, biome: 'rio' | 'brasilia' = 'rio')
     case 'bus':
       if (o.variant === 'roof') {
         carroAlegorico(g, o.length, seed);
+      } else if (busModel(g, o.length, o.height)) {
+        // ônibus articulado: dois modelos de IA em sequência
       } else {
         const color = seed % 2 ? 0xf2b705 : 0x1e88e5;
         g.add(box(2.0, o.height - 0.3, o.length, color, 0.3 + (o.height - 0.3) / 2, o.length / 2));
@@ -261,7 +282,13 @@ export function makeObstacleView(o: Obstacle, biome: 'rio' | 'brasilia' = 'rio')
       }
       break;
     case 'stand': {
-      // Banca de jornal
+      // Banca de jornal (modelo de IA; as laterais lisas aguentam o esticão no comprimento)
+      const banca = model('banca', [2.0, o.height, o.length]);
+      if (banca) {
+        banca.position.z = o.length / 2;
+        g.add(banca);
+        break;
+      }
       g.add(box(1.9, o.height, o.length, 0x1b7f4c));
       g.add(box(2.1, 0.14, o.length + 0.3, 0x14563a, o.height + 0.07, o.length / 2));
       for (let i = 0; i < 3; i++) g.add(box(0.45, 0.6, 0.04, CARNIVAL[(seed + i) % 6], 1.25, -0.01, -0.55 + i * 0.55));
@@ -288,6 +315,12 @@ export function makeObstacleView(o: Obstacle, biome: 'rio' | 'brasilia' = 'rio')
         break;
       }
       // Táxi do Rio (amarelo com faixa azul) vindo de frente
+      const taxi = model('taxi', [1.9, o.height, o.length]);
+      if (taxi) {
+        taxi.position.z = o.length / 2;
+        g.add(taxi);
+        break;
+      }
       g.add(box(1.8, 0.8, o.length, 0xffd600, 0.55, o.length / 2));
       g.add(box(1.82, 0.14, o.length, 0x1565c0, 0.6, o.length / 2));
       g.add(box(1.6, 0.6, o.length * 0.5, 0xffd600, 1.25, o.length * 0.45));
@@ -309,10 +342,22 @@ export function makeObstacleView(o: Obstacle, biome: 'rio' | 'brasilia' = 'rio')
     case 'tape':
       zebraTape(g, o.length);
       break;
-    case 'boi':
-      view.spin = boi(g, seed);
-      addOutline(view.spin, 0.04);
+    case 'boi': {
+      // A dança mexe no `spin`; o modelo de IA fica um pouco acima da caixa de colisão (chifres).
+      // Comprimento igual à caixa de colisão; um pouco mais alto que ela só nos chifres.
+      const m = model('boi', [null, 1.45, OB.boi.length]);
+      if (m) {
+        const spin = new THREE.Group();
+        spin.position.z = OB.boi.length / 2;
+        spin.add(m);
+        g.add(spin);
+        view.spin = spin;
+      } else {
+        view.spin = boi(g, seed);
+        addOutline(view.spin, 0.04);
+      }
       break;
+    }
     case 'drunk': {
       const d = makeDrunk();
       d.root.position.z = 0.4;
@@ -331,7 +376,7 @@ export function makePickupMesh(kind: PickupKind): THREE.Object3D {
   const g = new THREE.Group();
   switch (kind) {
     case 'coin': {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.07, 16), toon(0xffc107, { emissive: 0x332200 }));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.07, 16), toon(0xffca28));
       m.rotation.x = Math.PI / 2;
       const rim = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.035, 6, 16), toon(0xffa000));
       g.add(m, rim);

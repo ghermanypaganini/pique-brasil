@@ -13,9 +13,11 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 // 1. Tela de carregamento com patrocínio: no mínimo 4 s
 await page.goto(url);
-await page.waitForTimeout(1000);
+// Confere o card antes da captura: com a cena 3D pesada no navegador sem GPU, a captura
+// pode demorar mais que os 4 s da tela de carregamento.
+const adShown = await page.locator('.sp-ad').waitFor({ timeout: 3500 }).then(() => true, () => false);
+check(adShown, 'card "ANUNCIE AQUI" na tela de carregamento');
 await page.screenshot({ path: `${out}/0-carregando.png` });
-check(await page.locator('.sp-ad').isVisible(), 'card "ANUNCIE AQUI" na tela de carregamento');
 await page.waitForSelector('#loading', { state: 'detached', timeout: 15000 });
 const loadedAt = await page.evaluate(() => performance.now());
 check(loadedAt >= 4000, `carregamento ficou pelo menos 4 s (${Math.round(loadedAt)} ms)`);

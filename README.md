@@ -99,10 +99,10 @@ src/
   data/             balanceamento, trechos de pista, textos (i18n)
   world/            gerador de pista e superfícies
   systems/          lógica do jogo (sem Three.js; testável)
-  render/           cena 3D, personagens, cenário do Rio, efeitos
+  render/           cena 3D, personagens, cenários (Rio e Brasília), modelos de IA, céu, efeitos
   services/         áudio, ranking, patrocínio, salvamento, SDK dos portais
   shared/           código usado no jogo e no servidor (filtro de apelidos)
   ui/               HUD, menus, carregamento
-public/             ícones do PWA e patrocinadores
+public/             ícones do PWA, patrocinadores e modelos 3D (models/, ver LEIA-ME)
 scripts/            testes no navegador, ícones, builds e empacotamento
 ```

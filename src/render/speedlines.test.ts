@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { BALANCE } from '../data/balance';
 import { SpeedLines } from './speedlines';
 
-const zs = (s: SpeedLines) => s.root.children.map((m) => m.position.z);
-const xs = (s: SpeedLines) => s.root.children.map((m) => Math.abs(m.position.x));
+const zs = (s: SpeedLines) => s.positions.map((v) => v.z);
+const xs = (s: SpeedLines) => s.positions.map((v) => Math.abs(v.x));
 
 describe('linhas de velocidade', () => {
   it('voltam para perto do jogador quando uma nova partida começa', () => {
